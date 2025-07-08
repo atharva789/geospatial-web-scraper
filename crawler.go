@@ -2,8 +2,12 @@ package concurrent_scraper
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
+	"path"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -12,7 +16,7 @@ import (
 var tokens = make(chan struct{}, 40)
 var downloadTokens = make(chan struct{}, 40)
 
-func BreadthFirst(scrapeQueue []string) ([]string, error) {
+func BreadthFirst(scrapeQueue []string, downloadDir string) ([]string, error) {
 	log.Println("------------------------------------------------------------------------------")
 	log.Println("							STARTED NEW CRAWL SESSION")
 	log.Printf("							SEED URL: '%v'", scrapeQueue)
@@ -55,7 +59,7 @@ func BreadthFirst(scrapeQueue []string) ([]string, error) {
 					stop := <-done
 					if !stop {
 						go func(node WebNode) {
-							res := Crawl(&node)
+							res := Crawl(&node, &downloadDir)
 							worklist <- res
 						}(node)
 					}
@@ -71,9 +75,9 @@ func BreadthFirst(scrapeQueue []string) ([]string, error) {
 	return results, nil
 }
 
-func Crawl(node *WebNode) []WebNode {
+func Crawl(node *WebNode, downloadDir *string) []WebNode {
 	tokens <- struct{}{}
-	list, err := Extract(node)
+	list, err := Extract(node, downloadDir)
 	<-tokens
 	if err != nil {
 		log.Printf("Error occured while crawling %v", err)
@@ -124,7 +128,7 @@ func HasUnwantedClassOrID(n *html.Node) bool {
 	return false
 }
 
-func Extract(node *WebNode) ([]WebNode, error) {
+func Extract(node *WebNode, downloadDir *string) ([]WebNode, error) {
 	resp, err := http.Get(node.Url)
 	if err != nil {
 		return nil, err
@@ -135,13 +139,16 @@ func Extract(node *WebNode) ([]WebNode, error) {
 	}
 	downloadable := ValidateDownloadable(resp, node.Url)
 	if downloadable {
-		go Download(resp, node.Url)
-		resp.Body.Close()
+		bodyBytes, err := io.ReadAll(resp.Body)
+		resp.Body.Close() // safe to close now
+		if err != nil {
+			log.Printf("Failed to buffer body for download: %v", err)
+			return nil, nil
+		}
+		go DownloadBuffered(bodyBytes, node.Url, downloadDir)
 		return nil, nil
 	}
-	// else {
-	// 	log.Println("scraping URL", node.Url)
-	// }
+
 	doc, err := html.Parse(resp.Body)
 	resp.Body.Close()
 	if err != nil {
@@ -163,10 +170,29 @@ func ValidateDownloadable(resp *http.Response, url string) bool {
 	return false
 }
 
-func Download(resp *http.Response, url string) {
+func DownloadBuffered(data []byte, rawURL string, downloadDir *string) {
 	downloadTokens <- struct{}{}
-	log.Println("	Downloading file:", url)
-	<-downloadTokens
+	defer func() { <-downloadTokens }()
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		log.Printf("Error parsing URL: %v", err)
+		return
+	}
+	filename := path.Base(parsedURL.Path)
+	filepath := path.Join(*downloadDir, filename)
+
+	file, err := os.Create(filepath)
+	if err != nil {
+		log.Printf("Error creating file: %v", err)
+		return
+	}
+	defer file.Close()
+
+	_, err = file.Write(data)
+	if err != nil {
+		log.Printf("Error writing data: %v", err)
+	}
 }
 
 var GeoMIMETypes = map[string]bool{

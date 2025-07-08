@@ -9,7 +9,7 @@ func TestBreadthFirst(t *testing.T) {
 	t.Run("Site with no links", func(t *testing.T) {
 		url := "https://water.usgs.gov/GIS/wbd_huc8.pdf"
 		jobs := []string{url}
-		got, err := BreadthFirst(jobs)
+		got, err := BreadthFirst(jobs, "")
 		want := []string{url}
 
 		if !SlicesEqualUnordered(got, want) || err != nil {
@@ -18,7 +18,7 @@ func TestBreadthFirst(t *testing.T) {
 	})
 	t.Run("1-level depth site-map", func(t *testing.T) {
 		url := "https://httpbin.org/links/10/0"
-		got, err := BreadthFirst([]string{url})
+		got, err := BreadthFirst([]string{url}, "")
 		want := []string{"https://httpbin.org/links/10/9", "https://httpbin.org/links/10/0", "https://httpbin.org/links/10/1", "https://httpbin.org/links/10/2", "https://httpbin.org/links/10/3", "https://httpbin.org/links/10/4", "https://httpbin.org/links/10/5", "https://httpbin.org/links/10/6", "https://httpbin.org/links/10/7", "https://httpbin.org/links/10/8"}
 		if !SlicesEqualUnordered(got, want) || err != nil {
 			t.Errorf("got %v, want %v", got, want)
@@ -26,7 +26,7 @@ func TestBreadthFirst(t *testing.T) {
 	})
 	t.Run("Direct-download-link test", func(t *testing.T) {
 		url := "https://www.nass.usda.gov/Research_and_Science/Cropland/Release/datasets/2014_30m_cdls.zip"
-		got, err := BreadthFirst([]string{url})
+		got, err := BreadthFirst([]string{url}, "")
 		want := []string{url}
 		if !SlicesEqualUnordered(got, want) || err != nil {
 			t.Errorf("got %v, want %v", got, want)
@@ -52,7 +52,7 @@ func BenchmarkBreadthFirst(b *testing.B) {
 	log.Printf("To-scrape: %v", scrapeQueue)
 	// url := "https://www.nass.usda.gov/Research_and_Science/Cropland/Release/index.php"
 	var uniqueLinks []string
-	dList, _ := BreadthFirst(scrapeQueue)
+	dList, _ := BreadthFirst(scrapeQueue, "/Users/thorbthorb/Downloads/scraped-data")
 	for _, url := range dList {
 		if Contains(url, scrapeQueue) == false {
 			uniqueLinks = append(uniqueLinks, url)
