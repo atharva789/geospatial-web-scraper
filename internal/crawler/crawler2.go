@@ -143,7 +143,7 @@ func (m *Manager) DownloadBuffered(data []byte, rawURL string) {
 			"--seccomp",
 			"--shell=none",
 			"--quiet",
-			fmt.Sprintf("downloader -o=%s -u=%s", *m.downloadPath),
+			fmt.Sprintf("downloader -u=%s -b=%s -d=%s", rawURL, data, *m.downloadPath),
 		)
 		cmd.Run()
 	} else {
