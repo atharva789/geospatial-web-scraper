@@ -1,0 +1,19 @@
+terminal-api
+
+
+#if a user wants to find download URLs only
+
+	``{bash}`godl -download false -s "elevation data for Ohio from 2004-2020" ```
+
+#if a user wants to find links and download (without sandboxing)
+	
+	```{bash}godl -download  -sec false -m "elevation data for Ohio from 2004-2020"```
+
+#security is enabled by default: it must be disabled using the '--nosec' flag
+
+-----------------------------------------------------------------------------------
+
+
+downloader terminal-api for 'godl' downloader
+
+```{bash} downloader -u="https://abd.pdf" -d="/staging/mydir/" ```

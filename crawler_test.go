@@ -54,7 +54,7 @@ func BenchmarkBreadthFirst(b *testing.B) {
 	var uniqueLinks []string
 	dList, _ := BreadthFirst(scrapeQueue, "/Users/thorbthorb/Downloads/scraped-data")
 	for _, url := range dList {
-		if Contains(url, scrapeQueue) == false {
+		if Contains(url, scrapeQueue) == -1 {
 			uniqueLinks = append(uniqueLinks, url)
 			log.Println("to Download: ", url)
 		}

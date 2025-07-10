@@ -7,10 +7,17 @@ type WebNode struct {
 }
 
 type Manager struct {
-	downloadPath string
-	searchQuery  string
-	downloadURLs []string
-	searchFrom   []string //configure a set of URLs to enable scraping from
+	secure       bool
+	downloadPath *string
+	searchQuery  *string
+	downloadURLs []WebNode
+	searchFrom   map[string]string
+	linkChan     chan string
+	smTokens     chan struct{}
+	dlTokens     chan struct{}
+	worklist     chan []WebNode
+	done         chan bool
+	seen         map[string]bool
 }
 
 func SlicesEqualUnordered(a, b []string) bool {
