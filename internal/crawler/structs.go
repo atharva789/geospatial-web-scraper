@@ -1,4 +1,4 @@
-package concurrent_scraper
+package crawler
 
 type WebNode struct {
 	Url    string

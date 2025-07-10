@@ -1,4 +1,4 @@
-package concurrent_scraper
+package crawler
 
 var GeoMIMETypes = map[string]bool{
 	"application/csv":                      true,
