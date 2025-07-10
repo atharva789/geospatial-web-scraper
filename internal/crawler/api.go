@@ -69,7 +69,7 @@ func main() {
 			secure:       false,
 			downloadPath: &dir,
 			searchQuery:  searchPtr,
-			downloadURLs: []string{},
+			downloadURLs: []WebNode{},
 			searchFrom:   PublicGeospatialDataSeedsMap,
 			linkChan:     make(chan string, 1),
 			smTokens:     make(chan struct{}, 40),
