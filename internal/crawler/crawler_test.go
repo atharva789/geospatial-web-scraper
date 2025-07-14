@@ -26,7 +26,7 @@ func TestBreadthFirst(t *testing.T) {
 	})
 	t.Run("Direct-download-link test", func(t *testing.T) {
 		url := "https://www.nass.usda.gov/Research_and_Science/Cropland/Release/datasets/2014_30m_cdls.zip"
-		got, err := BreadthFirst([]string{url}, "")
+		got, err := BreadthFirst([]string{url}, "~/Downloads/scraper-data/")
 		want := []string{url}
 		if !SlicesEqualUnordered(got, want) || err != nil {
 			t.Errorf("got %v, want %v", got, want)
@@ -40,7 +40,7 @@ func BenchmarkBreadthFirst(b *testing.B) {
 	const JobSize = 10
 	var scrapeQueue []string
 	i := 0
-	for key, _ := range PublicGeospatialDataSeedsMap {
+	for key, _ := range PublicGeospatialDataSeeds {
 		if i > JobSize-1 {
 			break
 		}
@@ -52,7 +52,7 @@ func BenchmarkBreadthFirst(b *testing.B) {
 	log.Printf("To-scrape: %v", scrapeQueue)
 	// url := "https://www.nass.usda.gov/Research_and_Science/Cropland/Release/index.php"
 	var uniqueLinks []string
-	dList, _ := BreadthFirst(scrapeQueue, "/Users/thorbthorb/Downloads/scraped-data")
+	dList, _ := BreadthFirst(scrapeQueue, "/Users/thorbthorb/Downloads/scraped-data/")
 	for _, url := range dList {
 		if Contains(url, scrapeQueue) == -1 {
 			uniqueLinks = append(uniqueLinks, url)

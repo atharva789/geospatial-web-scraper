@@ -1,34 +1,46 @@
 package crawler
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os/exec"
-	"strings"
 
 	"golang.org/x/net/html"
 )
 
-func (m *Manager) findLinks() []string {
+func (m *Manager) FindLinks() []WebNode {
 	log.Println("------------------------------------------------------------------------------")
 	log.Println("							STARTED NEW CRAWL SESSION")
 	log.Println("------------------------------------------------------------------------------")
 
-	queryWords := strings.Split(*m.searchQuery, " ")
-	var sources []string
-	var searchTerms []string
+	//1. embed search query
+	var buf bytes.Buffer
+	newPayload := TextPayload{Texts: []string{*m.searchQuery}}
+	if err := json.NewEncoder(&buf).Encode(newPayload); err != nil {
+		log.Fatalf("Error occured while encoing search-query JSON payload: %v", err)
+	}
 
-	for _, src := range m.searchFrom {
-		sources = append(sources, src)
+	resp, err := http.Post(
+		"http://localhost:8080/embed",
+		"application/json",
+		&buf,
+	)
+	if err != nil {
+		log.Fatalf("error while sending embedding request for search-query: %v", err)
 	}
-	for _, word := range queryWords {
-		idx := Contains(word, sources)
-		if idx != -1 {
-			searchTerms = append(searchTerms, word)
-		}
+	defer resp.Body.Close()
+	var res EmbeddingResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		log.Fatalf("error returned from vectorization endpoint while embedding search-query: %v", err)
 	}
+
+	queryEmbedding := res.Embeddings[0]
+	//2. compare with cached URL-embeddings
+
+	//3. chose top 5 seeds using cosine similarity
 
 	var JobQueue []WebNode
 	for key, _ := range m.searchFrom {
@@ -72,11 +84,11 @@ func (m *Manager) findLinks() []string {
 	log.Println("------------------------------------------------------------------------------")
 	log.Printf("					Done! scraped %d URLs ", len(m.downloadURLs))
 	log.Println("------------------------------------------------------------------------------")
-	return m.toLinks()
+	return m.downloadURLs
 
 }
 
-func (m *Manager) toLinks() []string {
+func (m *Manager) ToLinks() []string {
 	var links []string
 	for _, node := range m.downloadURLs {
 		links = append(links, node.Url)
@@ -104,19 +116,13 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 	downloadable := ValidateDownloadable(resp, node.Url)
 	if downloadable {
 		if *m.downloadPath != "" {
-			bodyBytes, err := io.ReadAll(resp.Body)
-			resp.Body.Close() // safe to close now
-			if err != nil {
-				log.Printf("Failed to buffer body for download: %v", err)
-				return nil, nil
-			}
-			go DownloadBuffered(bodyBytes, node.Url, m.downloadPath)
+			go DownloadBuffered(resp, node.Url, m.downloadPath)
 		} else {
-			m.linkChan <- node.Url
+			m.linkChan <- struct{}{} //replace with mu.Lock()
 			links = append(links, WebNode{
 				Url: node.Url,
 			})
-			<-m.linkChan
+			<-m.linkChan //replace with mu.UnLock()
 		}
 		return nil, nil
 	}
@@ -132,22 +138,27 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 	return links, nil
 }
 
-func (m *Manager) DownloadBuffered(data []byte, rawURL string) {
-	m.dlTokens <- struct{}{}
+func (m *Manager) DownloadBuffered(resp *http.Response, rawURL string) {
 	if m.secure {
-		cmd := exec.Command(
-			"firejail",
-			"--private="+*m.downloadPath,
-			"--net=none",
-			"--caps.drop=all",
-			"--seccomp",
-			"--shell=none",
-			"--quiet",
-			fmt.Sprintf("downloader -u=%s -b=%s -d=%s", rawURL, data, *m.downloadPath),
-		)
-		cmd.Run()
-	} else {
+		m.dlTokens <- struct{}{}
+		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close() // safe to close now
+		if err != nil {
+			log.Printf("Failed to buffer body for download: %v", err)
+		}
+		// cmd := exec.Command(
+		// 	"firejail",
+		// 	"--private="+*m.downloadPath,
+		// 	"--net=none",
+		// 	"--caps.drop=all",
+		// 	"--seccomp",
+		// 	"--shell=none",
+		// 	"--quiet",
+		// 	fmt.Sprintf("downloader -u=%s -b=%s -d=%s", rawURL, data, *m.downloadPath),
+		// )
+		// cmd.Run()
 
+		Download(rawURL, data, m.downloadPath)
+		<-m.dlTokens
 	}
-	<-m.dlTokens
 }

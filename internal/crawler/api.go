@@ -1,46 +1,135 @@
 package crawler
 
 import (
+	"bytes"
+	"encoding/gob"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
+	"net/http"
 	"os"
-	"os/exec"
 	"strings"
-	"time"
+	"sync"
 )
 
-// Replace this with actual download logic
-func downloadFile(url, outputDir string, secure bool) error {
-	filename := extractFilename(url)
-	outputPath := fmt.Sprintf("%s/%s", strings.TrimRight(outputDir, "/"), filename)
+var dataPath = "/crawler/data.gob"
 
-	if secure {
-		cmd := exec.Command(
-			"firejail",
-			"--private="+outputDir,
-			"--net=none",
-			"--caps.drop=all",
-			"--seccomp",
-			"--shell=none",
-			"--quiet",
-			"wget", "-O", outputPath, url,
-		)
-		return cmd.Run()
-	} else {
-		cmd := exec.Command("wget", "-O", outputPath, url)
-		return cmd.Run()
+func GenerateEmbeddings() ([]float64, error) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var texts []string
+
+	for link, dataContext := range PublicGeospatialDataSeeds {
+		wg.Add(1)
+		go func(link string, ctx DataContext) {
+			defer wg.Done()
+			mu.Lock()
+			texts = append(texts, ctx.description)
+			mu.Unlock()
+		}(link, dataContext)
 	}
+
+	wg.Wait()
+	// texts is safe to use here
+	var buf bytes.Buffer
+	payload := TextPayload{Texts: texts}
+	if err := json.NewEncoder(&buf).Encode(payload); err != nil {
+		return nil, err
+	}
+
+	resp, err := http.Post(
+		"http://localhost:8080/embed",
+		"application/json",
+		&buf,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var res EmbeddingResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, err
+	}
+	return res.Embeddings, nil
 }
 
-func extractFilename(url string) string {
-	parts := strings.Split(url, "/")
-	if len(parts) > 0 {
-		return parts[len(parts)-1]
+func (m *Manager) Init() {
+	var data map[string]float64
+	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
+		//embed every link in PublicGeospatialDataSeeds,
+		//then write to .gob file
+		embeddings, err := GenerateEmbeddings()
+		if err != nil {
+			log.Println("Error occured while embedding PublicGeospatialDataSeeds data:", err)
+			return
+		}
+		var counter = 0
+		for key, _ := range PublicGeospatialDataSeeds {
+			data[key] = embeddings[counter]
+			counter++
+		}
+		file, err := os.Create(dataPath)
+		if err != nil {
+			log.Fatalf("Failed to create directory %s: %v", dataPath, err)
+		}
+		//write .gob file
+		encoder := gob.NewEncoder(file)
+		if err := encoder.Encode(data); err != nil {
+			log.Fatalf("Failed to write data to .gob file: %v", err)
+		}
+		m.CachedURLEmbeddings = data
+		return
 	}
-	rand.Seed(time.Now().UnixNano())
-	return fmt.Sprintf("file-%d.dat", rand.Intn(100000))
+	//read searchFrom .gob file
+	file, err := os.Open(dataPath)
+	if err != nil {
+		log.Fatalf("An error occured while reading the .gob file at %s: %v", dataPath, err)
+	}
+	defer file.Close()
+	decoder := gob.NewDecoder(file)
+	if err := decoder.Decode(&data); err != nil {
+		log.Fatalf("An error occured while decoding .gob file to cache: %v", err)
+	}
+	m.CachedURLEmbeddings = data
+	log.Println("Cached URL-embeddings loaded")
+}
+
+func (m *Manager) Close(newURLs []WebNode) {
+	//	2. Write newly-scraped URL(s) to .gob file?
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var unCachedURLs []string
+	for _, checkURL := range newURLs {
+		wg.Add(1)
+		go func(unCachedURL string) {
+			seen := false
+			for cachedURL, _ := range m.CachedURLEmbeddings {
+				if cachedURL == unCachedURL {
+					seen = true
+				}
+			}
+			if seen == false {
+				mu.Lock()
+				unCachedURLs = append(unCachedURLs, unCachedURL)
+				mu.Unlock()
+			}
+			wg.Done()
+		}(checkURL.Url)
+	}
+	wg.Wait()
+	//write to .gob file:
+	// 1. Find new URLs --> 2. find metadata/description --> get embedding
+	// 4. write to file
+
+	//read searchFrom .gob file
+	file, err := os.Open(dataPath)
+	if err != nil {
+		log.Printf("error occured while reading the .gob file, re-writing: %v: %v", dataPath, err)
+
+	}
+	defer file.Close()
+
 }
 
 func main() {
@@ -59,48 +148,39 @@ func main() {
 	}
 
 	var mg Manager
+	mg.Init()
 	// Begin search
-	var downloadableLinks []string
+	var downloadableLinks []WebNode
 	fmt.Printf("Searching for: \"%s\"\n", *searchPtr)
 
-	if *downloadDir == "" {
-		dir := ""
-		mg = Manager{
-			secure:       false,
-			downloadPath: &dir,
-			searchQuery:  searchPtr,
-			downloadURLs: []WebNode{},
-			searchFrom:   PublicGeospatialDataSeedsMap,
-			linkChan:     make(chan string, 1),
-			smTokens:     make(chan struct{}, 40),
-			dlTokens:     make(chan struct{}, 40),
-			worklist:     make(chan []WebNode),
-			done:         make(chan bool),
+	if *downloadDir != "" {
+		if _, err := os.Stat(*downloadDir); os.IsNotExist(err) {
+			if err := os.MkdirAll(*downloadDir, 0755); err != nil {
+				log.Fatalf("Failed to create directory %s: %v", *downloadDir, err)
+			}
 		}
-		downloadableLinks = mg.findLinks()
+	}
+
+	mg = Manager{
+		secure:       *noSec,
+		downloadPath: downloadDir,
+		searchQuery:  searchPtr,
+		downloadURLs: []WebNode{},
+		searchFrom:   PublicGeospatialDataSeeds,
+		linkChan:     make(chan struct{}, 1),
+		smTokens:     make(chan struct{}, 40),
+		dlTokens:     make(chan struct{}, 40),
+		worklist:     make(chan []WebNode),
+		done:         make(chan bool),
+	}
+
+	downloadableLinks = mg.FindLinks()
+	if *downloadDir == "" {
 		fmt.Println("Found URLs:")
-		for _, link := range downloadableLinks {
-			fmt.Println(link)
+		for _, node := range downloadableLinks {
+			fmt.Println(node.Url)
 		}
 		return
 	}
 
-	// Create output directory if not exists
-	if _, err := os.Stat(*downloadDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(*downloadDir, 0755); err != nil {
-			log.Fatalf("Failed to create directory %s: %v", *downloadDir, err)
-		}
-	}
-
-	// Download files
-	fmt.Printf("Downloading %d files to %s (security: %v)\n", len(downloadableLinks), *downloadDir, !*noSec)
-	for _, link := range downloadableLinks {
-		fmt.Printf("Downloading %s...\n", link)
-		err := downloadFile(link, *downloadDir, !*noSec)
-		if err != nil {
-			log.Printf("Failed to download %s: %v", link, err)
-		} else {
-			fmt.Printf("Downloaded: %s\n", link)
-		}
-	}
 }

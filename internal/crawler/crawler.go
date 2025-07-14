@@ -16,6 +16,10 @@ import (
 var tokens = make(chan struct{}, 40)
 var downloadTokens = make(chan struct{}, 40)
 
+var worklist = make(chan []WebNode)
+var seen = make(map[string]bool)
+var done = make(chan bool)
+
 func BreadthFirst(scrapeQueue []string, downloadDir string) ([]string, error) {
 	log.Println("------------------------------------------------------------------------------")
 	log.Println("							STARTED NEW CRAWL SESSION")
@@ -35,9 +39,6 @@ func BreadthFirst(scrapeQueue []string, downloadDir string) ([]string, error) {
 		})
 	}
 
-	seen := make(map[string]bool)
-	worklist := make(chan []WebNode)
-	done := make(chan bool)
 	go func() {
 		worklist <- JobQueue
 	}()
@@ -89,6 +90,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 	const maxDepth = 4
 
 	if n.Type == html.ElementNode && n.Data == "a" {
+
 		for _, a := range n.Attr {
 			if a.Key != "href" {
 				continue
@@ -139,13 +141,7 @@ func Extract(node *WebNode, downloadDir *string) ([]WebNode, error) {
 	}
 	downloadable := ValidateDownloadable(resp, node.Url)
 	if downloadable {
-		bodyBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close() // safe to close now
-		if err != nil {
-			log.Printf("Failed to buffer body for download: %v", err)
-			return nil, nil
-		}
-		go DownloadBuffered(bodyBytes, node.Url, downloadDir)
+		go DownloadBuffered(resp, node.Url, downloadDir)
 		return nil, nil
 	}
 
@@ -170,9 +166,15 @@ func ValidateDownloadable(resp *http.Response, url string) bool {
 	return false
 }
 
-func DownloadBuffered(data []byte, rawURL string, downloadDir *string) {
+func DownloadBuffered(resp *http.Response, rawURL string, downloadDir *string) {
 	downloadTokens <- struct{}{}
-	defer func() { <-downloadTokens }()
+
+	data, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if err != nil {
+		log.Printf("Failed to buffer body for download: %v", err)
+	}
 
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
@@ -193,4 +195,30 @@ func DownloadBuffered(data []byte, rawURL string, downloadDir *string) {
 	if err != nil {
 		log.Printf("Error writing data: %v", err)
 	}
+	<-downloadTokens
+}
+
+func Download(rawURL string, data []byte, downloadDir *string) error {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		log.Printf("Error parsing URL: %v", err)
+		return err
+	}
+	filename := path.Base(parsedURL.Path)
+	filepath := path.Join(*downloadDir, filename)
+
+	file, err := os.Create(filepath)
+	if err != nil {
+		log.Printf("Error creating file: %v", err)
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.Write(data)
+	if err != nil {
+		log.Printf("Error writing data: %v", err)
+		return err
+	}
+	return nil
+
 }
