@@ -17,7 +17,7 @@ func Contains(value string, slice []string) int {
 	return -1
 }
 
-func MergeSort(list *[]WebNode, start int, end int) []WebNode {
+func MergeSort(list *[]WebNode, start int, end int) []EmbeddedNode {
 	midpoint := end - start
 	middle := float64(midpoint / 2)
 	midpoint = int(math.Round(middle))
@@ -32,7 +32,35 @@ func MergeSort(list *[]WebNode, start int, end int) []WebNode {
 
 }
 
-func Merge(a *[]WebNode, b *[]WebNode) []WebNode {
+func Merge(a *[]EmbeddedNode, b *[]EmbeddedNode) []EmbeddedNode {
+	result := []EmbeddedNode{}
+	i, j := 0, 0
+	a_dref, b_dref := *a, *b
+	for {
+		if i <= len(a_dref)-1 || j <= len(b_dref)-1 {
+			if a_dref[i].cosine_similarity <= b_dref[j].cosine_similarity {
+				result = append(result, a_dref[i])
+				i++
+			}
+			if a_dref[i].cosine_similarity > b_dref[j].cosine_similarity {
+				result = append(result, b_dref[j])
+				j++
+			}
+		} else {
+			break
+		}
+	}
+
+	if i == len(a_dref)-1 {
+		for _, embNode := range b_dref[j:] {
+			result = append(result, embNode)
+		}
+	} else {
+		for _, embNode := range a_dref[i:] {
+			result = append(result, embNode)
+		}
+	}
+	return result
 
 }
 

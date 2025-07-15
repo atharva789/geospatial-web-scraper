@@ -17,7 +17,7 @@ type Manager struct {
 	linkChan            chan struct{}
 	smTokens            chan struct{}
 	dlTokens            chan struct{}
-	worklist            chan []WebNode
+	worklist            chan []EmbeddedNode
 	done                chan bool
 	seen                map[string]bool
 }
