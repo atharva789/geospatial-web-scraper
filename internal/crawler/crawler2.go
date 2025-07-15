@@ -68,11 +68,12 @@ func (m *Manager) FindLinks() []WebNode {
 	}()
 	wg.Wait()
 
+	length := len(relevantURLs) - 1
+	minusTen := length - 10
 	//sort, top-10
-
+	relevantURLs = MergeSort(&relevantURLs, 0, length)
 	//3. chose top 5 seeds using cosine similarity
-
-	JobQueue := relevantURLs[:10]
+	JobQueue := relevantURLs[minusTen:length]
 	//relevant seeds have been found
 
 	//Crawling begins
