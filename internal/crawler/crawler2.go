@@ -25,7 +25,7 @@ func (m *Manager) FindLinks() []WebNode {
 	}
 
 	resp, err := http.Post(
-		"http://localhost:8080/embed",
+		"http://localhost:8000/embed",
 		"application/json",
 		&buf,
 	)
@@ -45,27 +45,22 @@ func (m *Manager) FindLinks() []WebNode {
 	//create cosine-similarity and sort for top 10
 
 	var wg sync.WaitGroup
-	wg.Add(len(m.CachedURLEmbeddings))
-	drainChan := make(chan WebNode, len(m.CachedURLEmbeddings))
+	var mu sync.Mutex
 	for url, vec := range m.CachedURLEmbeddings {
+		wg.Add(1)
 		go func(vector []float64, url string) {
 			score, err := Cosine(queryEmbedding, vector)
 			if err != nil {
 				log.Fatalf("Error while computing cosine similarity: %v", err)
 			}
-			drainChan <- WebNode{Url: url, Parent: nil, Depth: 0, context: DataContext{
+			mu.Lock()
+			relevantURLs = append(relevantURLs, WebNode{Url: url, Parent: nil, Depth: 0, context: DataContext{
 				embedding: vector,
-			}, CosineSimilarity: score}
+			}, CosineSimilarity: score})
+			mu.Unlock()
 			wg.Done()
 		}(vec, url)
 	}
-	wg.Add(1)
-	go func() {
-		for node := range drainChan {
-			relevantURLs = append(relevantURLs, node)
-		}
-		wg.Done()
-	}()
 	wg.Wait()
 
 	length := len(relevantURLs) - 1
