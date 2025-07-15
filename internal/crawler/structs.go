@@ -12,7 +12,7 @@ type Manager struct {
 	downloadPath        *string
 	searchQuery         *string
 	downloadURLs        []WebNode
-	CachedURLEmbeddings map[string]float64
+	CachedURLEmbeddings map[string][]float64
 	searchFrom          map[string]DataContext
 	linkChan            chan struct{}
 	smTokens            chan struct{}
@@ -22,10 +22,15 @@ type Manager struct {
 	seen                map[string]bool
 }
 
+type EmbeddedNode struct {
+	node              WebNode
+	cosine_similarity float64
+}
+
 // DataContext holds metadata about a public data source.
 type DataContext struct {
-	description string  // human-readable description of the endpoint
-	embedding   float64 // placeholder for a future embedding value
+	description string    // human-readable description of the endpoint
+	embedding   []float64 // placeholder for a future embedding value
 }
 
 type TextPayload struct {
@@ -33,7 +38,7 @@ type TextPayload struct {
 }
 
 type EmbeddingResponse struct {
-	Embeddings []float64 `json:"embeddings"`
+	Embeddings [][]float64 `json:"embeddings"`
 }
 
 //how .gob files will be stored

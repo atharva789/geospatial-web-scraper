@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 
 	"golang.org/x/net/html"
 )
@@ -38,7 +39,36 @@ func (m *Manager) FindLinks() []WebNode {
 	}
 
 	queryEmbedding := res.Embeddings[0]
+	var relevantURLs []WebNode
 	//2. compare with cached URL-embeddings
+
+	//create cosine-similarity and sort for top 10
+
+	var wg sync.WaitGroup
+	wg.Add(len(m.CachedURLEmbeddings))
+	drainChan := make(chan EmbeddedNode, len(m.CachedURLEmbeddings))
+	for url, vec := range m.CachedURLEmbeddings {
+		go func(vector []float64, url string) {
+			score, err := Cosine(queryEmbedding, vector)
+			if err != nil {
+				log.Fatalf("Error while computing cosine similarity: %v", err)
+			}
+			drainChan <- EmbeddedNode{cosine_similarity: score, node: WebNode{Url: url, Parent: nil, Depth: 0, context: DataContext{
+				embedding: vector,
+			}}}
+			wg.Done()
+		}(vec, url)
+	}
+	wg.Add(1)
+	go func() {
+		for embNode := range drainChan {
+			relevantURLs = append(relevantURLs, embNode)
+		}
+		wg.Done()
+	}()
+	wg.Wait()
+
+	//sort, top-10
 
 	//3. chose top 5 seeds using cosine similarity
 

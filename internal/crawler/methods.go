@@ -17,6 +17,25 @@ func Contains(value string, slice []string) int {
 	return -1
 }
 
+func MergeSort(list *[]WebNode, start int, end int) []WebNode {
+	midpoint := end - start
+	middle := float64(midpoint / 2)
+	midpoint = int(math.Round(middle))
+
+	//sort left
+	a := MergeSort(list, start, midpoint)
+	//sort right
+	b := MergeSort(list, midpoint, end)
+	//join
+	final := Merge(&a, &b)
+	return final
+
+}
+
+func Merge(a *[]WebNode, b *[]WebNode) []WebNode {
+
+}
+
 // Cosine returns the cosine similarity of a and b.
 //
 //   - a and b must have identical length.
