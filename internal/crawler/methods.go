@@ -17,51 +17,42 @@ func Contains(value string, slice []string) int {
 	return -1
 }
 
-func MergeSort(list *[]WebNode, start int, end int) []EmbeddedNode {
-	midpoint := end - start
-	middle := float64(midpoint / 2)
-	midpoint = int(math.Round(middle))
+func MergeSort(list *[]WebNode, start int, end int) []WebNode {
+	if end-start <= 1 {
+		return (*list)[start:end]
+	}
 
-	//sort left
-	a := MergeSort(list, start, midpoint)
-	//sort right
-	b := MergeSort(list, midpoint, end)
-	//join
-	final := Merge(&a, &b)
-	return final
+	midpoint := start + (end-start)/2
 
+	left := MergeSort(list, start, midpoint)
+	right := MergeSort(list, midpoint, end)
+
+	return Merge(&left, &right)
 }
 
-func Merge(a *[]EmbeddedNode, b *[]EmbeddedNode) []EmbeddedNode {
-	result := []EmbeddedNode{}
+func Merge(a *[]WebNode, b *[]WebNode) []WebNode {
+	result := make([]WebNode, 0, len(*a)+len(*b))
 	i, j := 0, 0
-	a_dref, b_dref := *a, *b
-	for {
-		if i <= len(a_dref)-1 || j <= len(b_dref)-1 {
-			if a_dref[i].cosine_similarity <= b_dref[j].cosine_similarity {
-				result = append(result, a_dref[i])
-				i++
-			}
-			if a_dref[i].cosine_similarity > b_dref[j].cosine_similarity {
-				result = append(result, b_dref[j])
-				j++
-			}
+	aRef, bRef := *a, *b
+
+	for i < len(aRef) && j < len(bRef) {
+		if aRef[i].CosineSimilarity <= bRef[j].CosineSimilarity {
+			result = append(result, aRef[i])
+			i++
 		} else {
-			break
+			result = append(result, bRef[j])
+			j++
 		}
 	}
 
-	if i == len(a_dref)-1 {
-		for _, embNode := range b_dref[j:] {
-			result = append(result, embNode)
-		}
-	} else {
-		for _, embNode := range a_dref[i:] {
-			result = append(result, embNode)
-		}
+	if i < len(aRef) {
+		result = append(result, aRef[i:]...)
 	}
+	if j < len(bRef) {
+		result = append(result, bRef[j:]...)
+	}
+
 	return result
-
 }
 
 // Cosine returns the cosine similarity of a and b.

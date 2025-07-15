@@ -39,30 +39,30 @@ func (m *Manager) FindLinks() []WebNode {
 	}
 
 	queryEmbedding := res.Embeddings[0]
-	var relevantURLs []EmbeddedNode
+	var relevantURLs []WebNode
 	//2. compare with cached URL-embeddings
 
 	//create cosine-similarity and sort for top 10
 
 	var wg sync.WaitGroup
 	wg.Add(len(m.CachedURLEmbeddings))
-	drainChan := make(chan EmbeddedNode, len(m.CachedURLEmbeddings))
+	drainChan := make(chan WebNode, len(m.CachedURLEmbeddings))
 	for url, vec := range m.CachedURLEmbeddings {
 		go func(vector []float64, url string) {
 			score, err := Cosine(queryEmbedding, vector)
 			if err != nil {
 				log.Fatalf("Error while computing cosine similarity: %v", err)
 			}
-			drainChan <- EmbeddedNode{cosine_similarity: score, node: WebNode{Url: url, Parent: nil, Depth: 0, context: DataContext{
+			drainChan <- WebNode{Url: url, Parent: nil, Depth: 0, context: DataContext{
 				embedding: vector,
-			}}}
+			}, CosineSimilarity: score}
 			wg.Done()
 		}(vec, url)
 	}
 	wg.Add(1)
 	go func() {
-		for embNode := range drainChan {
-			relevantURLs = append(relevantURLs, embNode)
+		for node := range drainChan {
+			relevantURLs = append(relevantURLs, node)
 		}
 		wg.Done()
 	}()
@@ -85,8 +85,7 @@ func (m *Manager) FindLinks() []WebNode {
 	maxCrawl := 600
 	for ; n > 0; n-- {
 		list := <-m.worklist
-		for _, emb := range list {
-			node := emb.node
+		for _, node := range list {
 			if count > maxCrawl {
 				go func() { m.done <- true }()
 			} else {
@@ -122,7 +121,7 @@ func (m *Manager) ToLinks() []string {
 	return links
 }
 
-func (m *Manager) Crawl2(node *WebNode) []EmbeddedNode {
+func (m *Manager) Crawl2(node *WebNode) []WebNode {
 	m.smTokens <- struct{}{}
 	links, err := m.Extract2(node)
 	<-m.smTokens
@@ -133,8 +132,8 @@ func (m *Manager) Crawl2(node *WebNode) []EmbeddedNode {
 	return links
 }
 
-func (m *Manager) Extract2(node *WebNode) ([]EmbeddedNode, error) {
-	var links []EmbeddedNode
+func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
+	var links []WebNode
 
 	resp, err := http.Get(node.Url)
 	if err != nil {
@@ -150,9 +149,7 @@ func (m *Manager) Extract2(node *WebNode) ([]EmbeddedNode, error) {
 			go DownloadBuffered(resp, node.Url, m.downloadPath)
 		} else {
 			m.linkChan <- struct{}{} //replace with mu.Lock()
-			links = append(links, EmbeddedNode{node: WebNode{
-				Url: node.Url,
-			}})
+			links = append(links, WebNode{Url: node.Url})
 			<-m.linkChan //replace with mu.UnLock()
 		}
 		return nil, nil

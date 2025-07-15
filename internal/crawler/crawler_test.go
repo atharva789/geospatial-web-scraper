@@ -6,6 +6,7 @@ import (
 )
 
 func TestBreadthFirst(t *testing.T) {
+	t.Skip("requires network access")
 	t.Run("Site with no links", func(t *testing.T) {
 		url := "https://water.usgs.gov/GIS/wbd_huc8.pdf"
 		jobs := []string{url}
