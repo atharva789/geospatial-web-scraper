@@ -56,6 +56,7 @@ func GenerateEmbeddings() ([][]float64, error) {
 
 func (m *Manager) Init() {
 	data := make(map[string][]float64)
+
 	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
 		//embed every link in PublicGeospatialDataSeeds,
 		//then write to .gob file
