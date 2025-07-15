@@ -13,7 +13,7 @@ import (
 	"sync"
 )
 
-var dataPath = "/crawler/data.gob"
+var dataPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/data.gob"
 
 func GenerateEmbeddings() ([][]float64, error) {
 	var wg sync.WaitGroup
@@ -39,7 +39,7 @@ func GenerateEmbeddings() ([][]float64, error) {
 	}
 
 	resp, err := http.Post(
-		"http://localhost:8080/embed",
+		"http://localhost:8000/embed",
 		"application/json",
 		&buf,
 	)
