@@ -15,7 +15,7 @@ import (
 
 var dataPath = "/crawler/data.gob"
 
-func GenerateEmbeddings() ([]float64, error) {
+func GenerateEmbeddings() ([][]float64, error) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var texts []string
@@ -55,7 +55,7 @@ func GenerateEmbeddings() ([]float64, error) {
 }
 
 func (m *Manager) Init() {
-	var data map[string]float64
+	data := make(map[string][]float64)
 	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
 		//embed every link in PublicGeospatialDataSeeds,
 		//then write to .gob file
@@ -73,6 +73,7 @@ func (m *Manager) Init() {
 		if err != nil {
 			log.Fatalf("Failed to create directory %s: %v", dataPath, err)
 		}
+		defer file.Close()
 		//write .gob file
 		encoder := gob.NewEncoder(file)
 		if err := encoder.Encode(data); err != nil {
@@ -132,7 +133,8 @@ func (m *Manager) Close(newURLs []WebNode) {
 
 }
 
-func main() {
+// Run executes the CLI application.
+func Run() {
 	// Flags
 	searchPtr := flag.String("s", "", "Search query for dataset. Required.")
 	downloadDir := flag.String("download", "", "Directory to download datasets to. If empty, only prints URLs.")
@@ -147,7 +149,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	var mg Manager
+	mg := Manager{
+		secure:       *noSec,
+		downloadPath: downloadDir,
+		searchQuery:  searchPtr,
+		downloadURLs: []WebNode{},
+		searchFrom:   PublicGeospatialDataSeeds,
+		linkChan:     make(chan struct{}, 1),
+		smTokens:     make(chan struct{}, 40),
+		dlTokens:     make(chan struct{}, 40),
+		worklist:     make(chan []WebNode),
+		done:         make(chan bool),
+		seen:         make(map[string]bool),
+	}
 	mg.Init()
 	// Begin search
 	var downloadableLinks []WebNode
@@ -159,19 +173,6 @@ func main() {
 				log.Fatalf("Failed to create directory %s: %v", *downloadDir, err)
 			}
 		}
-	}
-
-	mg = Manager{
-		secure:       *noSec,
-		downloadPath: downloadDir,
-		searchQuery:  searchPtr,
-		downloadURLs: []WebNode{},
-		searchFrom:   PublicGeospatialDataSeeds,
-		linkChan:     make(chan struct{}, 1),
-		smTokens:     make(chan struct{}, 40),
-		dlTokens:     make(chan struct{}, 40),
-		worklist:     make(chan []WebNode),
-		done:         make(chan bool),
 	}
 
 	downloadableLinks = mg.FindLinks()
