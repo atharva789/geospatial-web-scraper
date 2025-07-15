@@ -15,7 +15,7 @@ import (
 
 var dataPath = "/crawler/data.gob"
 
-func GenerateEmbeddings() ([]float64, error) {
+func GenerateEmbeddings() ([][]float64, error) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var texts []string
@@ -55,7 +55,7 @@ func GenerateEmbeddings() ([]float64, error) {
 }
 
 func (m *Manager) Init() {
-	var data map[string]float64
+	var data map[string][]float64
 	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
 		//embed every link in PublicGeospatialDataSeeds,
 		//then write to .gob file
