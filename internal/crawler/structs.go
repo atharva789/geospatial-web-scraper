@@ -1,10 +1,11 @@
 package crawler
 
 type WebNode struct {
-	Url     string
-	Parent  *WebNode // node is a parent if parentURL == "root"
-	Depth   int
-	context DataContext
+	Url              string
+	Parent           *WebNode // node is a parent if parentURL == "root"
+	Depth            int
+	context          DataContext
+	CosineSimilarity float64
 }
 
 type Manager struct {
@@ -17,14 +18,9 @@ type Manager struct {
 	linkChan            chan struct{}
 	smTokens            chan struct{}
 	dlTokens            chan struct{}
-	worklist            chan []EmbeddedNode
+	worklist            chan []WebNode
 	done                chan bool
 	seen                map[string]bool
-}
-
-type EmbeddedNode struct {
-	node              WebNode
-	cosine_similarity float64
 }
 
 // DataContext holds metadata about a public data source.
