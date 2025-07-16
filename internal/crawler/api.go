@@ -25,7 +25,7 @@ func GenerateEmbeddings() ([][]float64, error) {
 		go func(link string, ctx DataContext) {
 			defer wg.Done()
 			mu.Lock()
-			texts = append(texts, ctx.description)
+			texts = append(texts, ctx.Description)
 			mu.Unlock()
 		}(link, dataContext)
 	}
@@ -59,7 +59,7 @@ func (m *Manager) Init() {
 	//data is a map of URL : embedding
 	// m.CachedURLEmbeddings = data
 
-	//data SHOULD BE a map of URL: DataContext{description, embedding}
+	//data SHOULD BE a map of URL: DataContext{Description, Embedding}
 
 	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
 		//embed every link in PublicGeospatialDataSeeds,
@@ -72,8 +72,8 @@ func (m *Manager) Init() {
 		var counter = 0
 		for url, ctx := range PublicGeospatialDataSeeds {
 			data[url] = DataContext{
-				description: ctx.description,
-				embedding:   embeddings[counter],
+				Description: ctx.Description,
+				Embedding:   embeddings[counter],
 			}
 			counter++
 		}
