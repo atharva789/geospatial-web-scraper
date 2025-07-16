@@ -49,7 +49,7 @@ func (m *Manager) FindLinks() []WebNode {
 	for url, ctx := range m.CachedURLEmbeddings {
 		wg.Add(1)
 		go func(context DataContext, url string) {
-			score, err := Cosine(queryEmbedding, context.embedding)
+			score, err := Cosine(queryEmbedding, context.Embedding)
 			if err != nil {
 				log.Fatalf("Error while computing cosine similarity: %v", err)
 			}
@@ -70,7 +70,7 @@ func (m *Manager) FindLinks() []WebNode {
 	//relevant seeds have been found
 	fmt.Println("Number of relevant URLs: ", len(relevantURLs))
 	for _, node := range relevantURLs {
-		fmt.Println("	closest-match URL: ", node.Url, node.context.description)
+		fmt.Println("	closest-match URL: ", node.Url, node.context.Description)
 	}
 
 	//Crawling begins
