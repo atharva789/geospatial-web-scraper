@@ -79,8 +79,8 @@ func TestGenerateEmbeddings(t *testing.T) {
 	// override seeds with two entries
 	orig := PublicGeospatialDataSeeds
 	PublicGeospatialDataSeeds = map[string]DataContext{
-		"u1": {description: "d1"},
-		"u2": {description: "d2"},
+		"u1": {Description: "d1"},
+		"u2": {Description: "d2"},
 	}
 	defer func() { PublicGeospatialDataSeeds = orig }()
 
