@@ -13,7 +13,7 @@ type Manager struct {
 	downloadPath        *string
 	searchQuery         *string
 	downloadURLs        []WebNode
-	CachedURLEmbeddings map[string][]float64
+	CachedURLEmbeddings map[string]DataContext
 	searchFrom          map[string]DataContext
 	linkChan            chan struct{}
 	smTokens            chan struct{}
