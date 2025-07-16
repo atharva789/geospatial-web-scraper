@@ -55,7 +55,11 @@ func GenerateEmbeddings() ([][]float64, error) {
 }
 
 func (m *Manager) Init() {
-	data := make(map[string][]float64)
+	data := make(map[string]DataContext)
+	//data is a map of URL : embedding
+	// m.CachedURLEmbeddings = data
+
+	//data SHOULD BE a map of URL: DataContext{description, embedding}
 
 	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
 		//embed every link in PublicGeospatialDataSeeds,
@@ -66,8 +70,11 @@ func (m *Manager) Init() {
 			return
 		}
 		var counter = 0
-		for key, _ := range PublicGeospatialDataSeeds {
-			data[key] = embeddings[counter]
+		for url, ctx := range PublicGeospatialDataSeeds {
+			data[url] = DataContext{
+				description: ctx.description,
+				embedding:   embeddings[counter],
+			}
 			counter++
 		}
 		file, err := os.Create(dataPath)

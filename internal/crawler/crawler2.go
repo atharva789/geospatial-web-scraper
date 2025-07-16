@@ -46,20 +46,18 @@ func (m *Manager) FindLinks() []WebNode {
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	for url, vec := range m.CachedURLEmbeddings {
+	for url, ctx := range m.CachedURLEmbeddings {
 		wg.Add(1)
-		go func(vector []float64, url string) {
-			score, err := Cosine(queryEmbedding, vector)
+		go func(context DataContext, url string) {
+			score, err := Cosine(queryEmbedding, context.embedding)
 			if err != nil {
 				log.Fatalf("Error while computing cosine similarity: %v", err)
 			}
 			mu.Lock()
-			relevantURLs = append(relevantURLs, WebNode{Url: url, Parent: nil, Depth: 0, context: DataContext{
-				embedding: vector,
-			}, CosineSimilarity: score})
+			relevantURLs = append(relevantURLs, WebNode{Url: url, Parent: nil, Depth: 0, context: context, CosineSimilarity: score})
 			mu.Unlock()
 			wg.Done()
-		}(vec, url)
+		}(ctx, url)
 	}
 	wg.Wait()
 
@@ -70,6 +68,10 @@ func (m *Manager) FindLinks() []WebNode {
 	//3. chose top 5 seeds using cosine similarity
 	JobQueue := relevantURLs[minusTen:length]
 	//relevant seeds have been found
+	fmt.Println("Number of relevant URLs: ", len(relevantURLs))
+	for _, node := range relevantURLs {
+		fmt.Println("	closest-match URL: ", node.Url, node.context.description)
+	}
 
 	//Crawling begins
 	go func() {
@@ -141,12 +143,11 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 	}
 	downloadable := ValidateDownloadable(resp, node.Url)
 	if downloadable {
+		m.linkChan <- struct{}{} //replace with mu.Lock()
+		links = append(links, WebNode{Url: node.Url})
+		<-m.linkChan //replace with mu.UnLock()
 		if *m.downloadPath != "" {
 			go DownloadBuffered(resp, node.Url, m.downloadPath)
-		} else {
-			m.linkChan <- struct{}{} //replace with mu.Lock()
-			links = append(links, WebNode{Url: node.Url})
-			<-m.linkChan //replace with mu.UnLock()
 		}
 		return nil, nil
 	}
