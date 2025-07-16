@@ -25,8 +25,8 @@ type Manager struct {
 
 // DataContext holds metadata about a public data source.
 type DataContext struct {
-	description string    // human-readable description of the endpoint
-	embedding   []float64 // placeholder for a future embedding value
+	Description string    // human-readable description of the endpoint
+	Embedding   []float64 // placeholder for a future embedding value
 }
 
 type TextPayload struct {
@@ -38,12 +38,12 @@ type EmbeddingResponse struct {
 }
 
 //how .gob files will be stored
-// link string : DataContext{description string, embedding float64}
+// link string : DataContext{Description string, Embedding []float64}
 
 // .gob file is map[string] float64 for now. In the future, it should be
 // map[string] Cache
 
-// Cache will have Cache{embedding float64, description string, filepath string}
+// Cache will have Cache{Embedding []float64, Description string, filepath string}
 func SlicesEqualUnordered(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
