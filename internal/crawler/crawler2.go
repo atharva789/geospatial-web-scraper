@@ -68,9 +68,10 @@ func (m *Manager) FindLinks() []WebNode {
 	//3. chose top 5 seeds using cosine similarity
 	JobQueue := relevantURLs[minusTen:length]
 	//relevant seeds have been found
-	fmt.Println("JobQueue: ", JobQueue)
-	fmt.Println("Number of relevant URLs: ", len(relevantURLs))
-	for _, node := range relevantURLs {
+
+	fmt.Println("Number of relevant URLs: ", len(JobQueue))
+	for _, node := range JobQueue {
+
 		fmt.Println("	closest-match URL: ", node.Url, node.context.Description)
 	}
 
