@@ -86,7 +86,7 @@ func Crawl(node *WebNode, downloadDir *string) []WebNode {
 	return list
 }
 
-func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode) {
+func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node) {
 	const maxDepth = 4
 
 	if n.Type == html.ElementNode && n.Data == "a" {
@@ -102,7 +102,13 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 			if err != nil {
 				continue // ignore bad URLs
 			}
-			if parent.Depth+1 < maxDepth {
+			ext := strings.ToLower(path.Ext(link.Path))
+			if GeoFileExtensions[ext] {
+				meta := ExtractMetadata(root, resp.Request.URL.String(), link.String())
+				if parent.Depth+1 < maxDepth {
+					*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: meta}})
+				}
+			} else if parent.Depth+1 < maxDepth {
 				*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1})
 			}
 		}
@@ -111,7 +117,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 	// Recurse into children
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && HasUnwantedClassOrID(c) == false {
-			VisitNode(c, links, resp, parent)
+			VisitNode(c, links, resp, parent, root)
 		}
 	}
 }
@@ -152,7 +158,7 @@ func Extract(node *WebNode, downloadDir *string) ([]WebNode, error) {
 	}
 	var links []WebNode
 
-	VisitNode(doc, &links, resp, node)
+	VisitNode(doc, &links, resp, node, doc)
 
 	return links, nil
 }
