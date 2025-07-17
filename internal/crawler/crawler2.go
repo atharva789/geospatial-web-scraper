@@ -25,7 +25,7 @@ func (m *Manager) FindLinks() []WebNode {
 	}
 
 	resp, err := http.Post(
-		"http://localhost:8000/embed",
+		"http://localhost:8080/embed",
 		"application/json",
 		&buf,
 	)
@@ -158,7 +158,7 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 		return nil, fmt.Errorf("parsing %s as HTML: %v", node.Url, err)
 	}
 
-	VisitNode(doc, &m.downloadURLs, resp, node)
+	VisitNode(doc, &m.downloadURLs, resp, node, doc)
 
 	return links, nil
 }
