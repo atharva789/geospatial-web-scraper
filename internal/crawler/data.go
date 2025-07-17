@@ -30,6 +30,21 @@ var GeoMIMETypes = map[string]bool{
 	"application/topo+json":                true,
 }
 
+// GeoFileExtensions lists common geospatial dataset file extensions.
+var GeoFileExtensions = map[string]bool{
+	".zip":     true,
+	".csv":     true,
+	".json":    true,
+	".geojson": true,
+	".kml":     true,
+	".kmz":     true,
+	".tif":     true,
+	".tiff":    true,
+	".nc":      true,
+	".grib":    true,
+	".xml":     true,
+}
+
 var UnwantedClassOrIDSubstrings = map[string]bool{
 	// Navigation, headers, menus
 	"nav":        true,
