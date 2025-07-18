@@ -1,18 +1,11 @@
 package crawler
 
-import "sync"
-
 type WebNode struct {
 	Url              string
 	Parent           *WebNode // node is a parent if parentURL == "root"
 	Depth            int
 	context          DataContext
 	CosineSimilarity float64
-}
-
-type ConcurrentSafeMap struct {
-	mu  sync.RWMutex
-	Map map[string]DataContext
 }
 
 type Manager struct {
