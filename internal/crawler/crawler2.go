@@ -46,7 +46,7 @@ func (m *Manager) FindLinks() []WebNode {
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	for url, ctx := range m.CachedURLEmbeddings {
+	for url, ctx := range m.CachedURLEmbeddings.Map {
 		wg.Add(1)
 		go func(context DataContext, url string) {
 			score, err := Cosine(queryEmbedding, context.Embedding)

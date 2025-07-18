@@ -88,7 +88,7 @@ func GenerateEmbeddings() ([][]float64, error) {
 func (m *Manager) Init() {
 	data := make(map[string]DataContext)
 	//data is a map of URL : embedding
-	// m.CachedURLEmbeddings = data
+	// m.CachedURLEmbeddings.Map = data
 
 	//data SHOULD BE a map of URL: DataContext{Description, Embedding}
 
@@ -109,7 +109,7 @@ func (m *Manager) Init() {
 			counter++
 		}
 		WriteToGob(dataPath, data)
-		m.CachedURLEmbeddings = data
+		m.CachedURLEmbeddings.Map = data
 		return
 	}
 	//read searchFrom .gob file
@@ -122,7 +122,7 @@ func (m *Manager) Init() {
 	if err := decoder.Decode(&data); err != nil {
 		log.Fatalf("An error occured while decoding .gob file to cache: %v", err)
 	}
-	m.CachedURLEmbeddings = data
+	m.CachedURLEmbeddings.Map = data
 	log.Println("Cached URL-embeddings loaded")
 }
 
@@ -134,14 +134,14 @@ func (m *Manager) Close(newURLs []WebNode) {
 		wg.Add(1)
 		go func(newNode WebNode) {
 			seen := false
-			for cachedURL, _ := range m.CachedURLEmbeddings {
+			for cachedURL := range m.CachedURLEmbeddings.Map {
 				if cachedURL == newNode.Url {
 					seen = true
 				}
 			}
 			if seen == false {
 				mu.Lock()
-				m.CachedURLEmbeddings[newNode.Url] = newNode.context
+				m.CachedURLEmbeddings.Map[newNode.Url] = newNode.context
 				mu.Unlock()
 			}
 			wg.Done()
@@ -149,7 +149,7 @@ func (m *Manager) Close(newURLs []WebNode) {
 	}
 	wg.Wait()
 	//write to .gob file:
-	WriteToGob(dataPath, m.CachedURLEmbeddings)
+	WriteToGob(dataPath, m.CachedURLEmbeddings.Map)
 }
 
 // Run executes the CLI application.
