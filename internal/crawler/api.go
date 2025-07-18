@@ -14,6 +14,37 @@ import (
 )
 
 var dataPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/data.gob"
+var findLinksLogPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/logs/findLinks.log"
+
+func WriteToLog(filepath string) (*os.File, error) {
+	logFile, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("error opening log file: %w", err)
+	}
+	log.SetOutput(logFile)
+	return logFile, nil
+}
+
+func WriteToGob(filepath string, data interface{}) error {
+	file, err := os.Open(filepath)
+	if err != nil {
+		log.Println(".gob file specified doesn't exist, creating. Error: ", err)
+		file, err = os.Create(filepath)
+		if err != nil {
+			log.Println("	An error occured while creating .gob file: ", err)
+			return err
+		}
+
+	}
+	defer file.Close()
+	encoder := gob.NewEncoder(file)
+	if err := encoder.Encode(data); err != nil {
+		log.Println("An error occured while writing data to .gob file: ", err)
+		return err
+	}
+	return nil
+
+}
 
 func GenerateEmbeddings() ([][]float64, error) {
 	var wg sync.WaitGroup
@@ -39,7 +70,7 @@ func GenerateEmbeddings() ([][]float64, error) {
 	}
 
 	resp, err := http.Post(
-		"http://localhost:8080/embed",
+		"http://localhost:8000/embed",
 		"application/json",
 		&buf,
 	)
@@ -77,16 +108,7 @@ func (m *Manager) Init() {
 			}
 			counter++
 		}
-		file, err := os.Create(dataPath)
-		if err != nil {
-			log.Fatalf("Failed to create directory %s: %v", dataPath, err)
-		}
-		defer file.Close()
-		//write .gob file
-		encoder := gob.NewEncoder(file)
-		if err := encoder.Encode(data); err != nil {
-			log.Fatalf("Failed to write data to .gob file: %v", err)
-		}
+		WriteToGob(dataPath, data)
 		m.CachedURLEmbeddings = data
 		return
 	}
@@ -108,41 +130,35 @@ func (m *Manager) Close(newURLs []WebNode) {
 	//	2. Write newly-scraped URL(s) to .gob file?
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var unCachedURLs []string
-	for _, checkURL := range newURLs {
+	for _, node := range newURLs {
 		wg.Add(1)
-		go func(unCachedURL string) {
+		go func(newNode WebNode) {
 			seen := false
 			for cachedURL, _ := range m.CachedURLEmbeddings {
-				if cachedURL == unCachedURL {
+				if cachedURL == newNode.Url {
 					seen = true
 				}
 			}
 			if seen == false {
 				mu.Lock()
-				unCachedURLs = append(unCachedURLs, unCachedURL)
+				m.CachedURLEmbeddings[newNode.Url] = newNode.context
 				mu.Unlock()
 			}
 			wg.Done()
-		}(checkURL.Url)
+		}(node)
 	}
 	wg.Wait()
 	//write to .gob file:
-	// 1. Find new URLs --> 2. find metadata/description --> get embedding
-	// 4. write to file
-
-	//read searchFrom .gob file
-	file, err := os.Open(dataPath)
-	if err != nil {
-		log.Printf("error occured while reading the .gob file, re-writing: %v: %v", dataPath, err)
-
-	}
-	defer file.Close()
-
+	WriteToGob(dataPath, m.CachedURLEmbeddings)
 }
 
 // Run executes the CLI application.
 func Run() {
+	logFile, logErr := WriteToLog(findLinksLogPath)
+	if logErr != nil {
+		log.Fatalf("An error occured while making log-file: %v", logErr)
+	}
+	defer logFile.Close()
 	// Flags
 	searchPtr := flag.String("s", "", "Search query for dataset. Required.")
 	downloadDir := flag.String("download", "", "Directory to download datasets to. If empty, only prints URLs.")
@@ -184,12 +200,13 @@ func Run() {
 	}
 
 	downloadableLinks = mg.FindLinks()
-	if *downloadDir == "" {
-		fmt.Println("Found URLs:")
-		for _, node := range downloadableLinks {
-			fmt.Println(node.Url)
-		}
-		return
+	log.Printf("For searchQuery '%v'", *searchPtr)
+	log.Printf("	found %v URLs:", len(downloadableLinks))
+
+	for _, node := range downloadableLinks {
+		log.Println("		URL: ", node.Url)
 	}
+	mg.Close(downloadableLinks)
+	return
 
 }

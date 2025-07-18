@@ -11,14 +11,6 @@ import (
 	"golang.org/x/net/html"
 )
 
-// downloadMetadata represents extracted information about a downloadable file.
-type downloadMetadata struct {
-	Title       string   `json:"title,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Keywords    []string `json:"keywords,omitempty"`
-	URL         string   `json:"url"`
-}
-
 // ExtractMetadata parses metadata from the provided HTML document and returns a
 // JSON string describing the download URL and page details.
 func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
