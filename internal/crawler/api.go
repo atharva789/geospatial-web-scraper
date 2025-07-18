@@ -129,23 +129,24 @@ func (m *Manager) Init() {
 func (m *Manager) Close(newURLs []WebNode) {
 	//	2. Write newly-scraped URL(s) to .gob file?
 	var wg sync.WaitGroup
-	var mu sync.Mutex
+
+	//iterate with a channel, and add links to chan
+	unSeen := make(chan WebNode, 500)
 	for _, node := range newURLs {
 		wg.Add(1)
 		go func(newNode WebNode) {
-			seen := false
 			for cachedURL, _ := range m.CachedURLEmbeddings {
 				if cachedURL == newNode.Url {
-					seen = true
+					return
 				}
 			}
-			if seen == false {
-				mu.Lock()
-				m.CachedURLEmbeddings[newNode.Url] = newNode.context
-				mu.Unlock()
-			}
+			unSeen <- newNode
 			wg.Done()
 		}(node)
+	}
+	close(unSeen)
+	for node := range unSeen {
+		m.CachedURLEmbeddings[node.Url] = node.context
 	}
 	wg.Wait()
 	//write to .gob file:
