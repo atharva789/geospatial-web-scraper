@@ -1,11 +1,18 @@
 package crawler
 
+import "sync"
+
 type WebNode struct {
 	Url              string
 	Parent           *WebNode // node is a parent if parentURL == "root"
 	Depth            int
 	context          DataContext
 	CosineSimilarity float64
+}
+
+type ConcurrentSafeMap struct {
+	mu  sync.RWMutex
+	Map map[string]DataContext
 }
 
 type Manager struct {
@@ -27,6 +34,14 @@ type Manager struct {
 type DataContext struct {
 	Description string    // human-readable description of the endpoint
 	Embedding   []float64 // placeholder for a future embedding value
+}
+
+// downloadMetadata represents extracted information about a downloadable file.
+type downloadMetadata struct {
+	Title       string   `json:"title,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Keywords    []string `json:"keywords,omitempty"`
+	URL         string   `json:"url"`
 }
 
 type TextPayload struct {

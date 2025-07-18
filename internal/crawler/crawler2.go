@@ -25,7 +25,7 @@ func (m *Manager) FindLinks() []WebNode {
 	}
 
 	resp, err := http.Post(
-		"http://localhost:8080/embed",
+		"http://localhost:8000/embed",
 		"application/json",
 		&buf,
 	)

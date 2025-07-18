@@ -190,7 +190,7 @@ func DownloadBuffered(resp *http.Response, rawURL string, downloadDir *string) {
 	filename := path.Base(parsedURL.Path)
 	filepath := path.Join(*downloadDir, filename)
 
-	file, err := os.Create(filepath)
+	file, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("Error creating file: %v", err)
 		return
