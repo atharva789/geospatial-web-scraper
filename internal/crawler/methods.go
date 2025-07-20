@@ -8,6 +8,8 @@ import (
 	"sync"
 )
 
+// Contains returns the index of value in slice, ignoring case. If the value is
+// not present it returns -1.
 func Contains(value string, slice []string) int {
 	for idx, wrd := range slice {
 		if strings.Compare(strings.ToLower(wrd), strings.ToLower(value)) == 0 {
@@ -17,6 +19,8 @@ func Contains(value string, slice []string) int {
 	return -1
 }
 
+// MergeSort sorts the slice of WebNodes in place by CosineSimilarity using a
+// classic recursive merge sort algorithm.
 func MergeSort(list *[]WebNode, start int, end int) []WebNode {
 	if end-start <= 1 {
 		return (*list)[start:end]
@@ -30,6 +34,8 @@ func MergeSort(list *[]WebNode, start int, end int) []WebNode {
 	return Merge(&left, &right)
 }
 
+// Merge merges two already sorted WebNode slices by CosineSimilarity and
+// returns the combined sorted slice.
 func Merge(a *[]WebNode, b *[]WebNode) []WebNode {
 	result := make([]WebNode, 0, len(*a)+len(*b))
 	i, j := 0, 0

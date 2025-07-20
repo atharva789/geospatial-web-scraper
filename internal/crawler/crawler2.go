@@ -12,6 +12,9 @@ import (
 	"golang.org/x/net/html"
 )
 
+// FindLinks embeds the search query, compares it against cached seed
+// descriptions and returns the most relevant URLs which are then crawled. The
+// resulting downloadable links are accumulated in m.downloadURLs.
 func (m *Manager) FindLinks() []WebNode {
 	log.Println("------------------------------------------------------------------------------")
 	log.Println("							STARTED NEW CRAWL SESSION")
@@ -113,6 +116,7 @@ func (m *Manager) FindLinks() []WebNode {
 
 }
 
+// ToLinks returns the URLs from the download queue as a plain slice of strings.
 func (m *Manager) ToLinks() []string {
 	var links []string
 	for _, node := range m.downloadURLs {
@@ -121,6 +125,8 @@ func (m *Manager) ToLinks() []string {
 	return links
 }
 
+// Crawl2 is a concurrency limited wrapper around Extract2 used during the main
+// crawl loop. It returns any new links discovered for further processing.
 func (m *Manager) Crawl2(node *WebNode) []WebNode {
 	m.smTokens <- struct{}{}
 	links, err := m.Extract2(node)
@@ -132,6 +138,9 @@ func (m *Manager) Crawl2(node *WebNode) []WebNode {
 	return links
 }
 
+// Extract2 performs the actual HTTP GET for a node during the main crawl. It
+// appends downloadable URLs to m.downloadURLs and returns any follow-on links
+// for further crawling.
 func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 	var links []WebNode
 
@@ -165,6 +174,8 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 	return links, nil
 }
 
+// DownloadBuffered reads the HTTP response body and writes it to disk when
+// running in secure mode. Downloads are serialized using dlTokens.
 func (m *Manager) DownloadBuffered(resp *http.Response, rawURL string) {
 	if m.secure {
 		m.dlTokens <- struct{}{}
