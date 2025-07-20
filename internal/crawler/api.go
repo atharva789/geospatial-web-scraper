@@ -16,6 +16,31 @@ import (
 var dataPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/data.gob"
 var findLinksLogPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/logs/findLinks.log"
 
+func GetBatchedEmbeddings(texts []string) (EmbeddingResponse, error) {
+	var buf bytes.Buffer
+	newPayload := TextPayload{Texts: texts}
+	if err := json.NewEncoder(&buf).Encode(newPayload); err != nil {
+		log.Printf("	Error occured while encoding data JSON payload: %v", err)
+		return EmbeddingResponse{}, err
+	}
+
+	resp, err := http.Post(
+		"http://localhost:8000/embed",
+		"application/json",
+		&buf,
+	)
+	if err != nil {
+		log.Printf("	error while sending embedding request for data: %v", err)
+		return EmbeddingResponse{}, err
+	}
+	defer resp.Body.Close()
+	var res EmbeddingResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		log.Fatalf("	error returned from vectorization endpoint while embedding search-query: %v", err)
+	}
+	return res, nil
+}
+
 func WriteToLog(filepath string) (*os.File, error) {
 	logFile, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -26,15 +51,9 @@ func WriteToLog(filepath string) (*os.File, error) {
 }
 
 func WriteToGob(filepath string, data interface{}) error {
-	file, err := os.Open(filepath)
+	file, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Println(".gob file specified doesn't exist, creating. Error: ", err)
-		file, err = os.Create(filepath)
-		if err != nil {
-			log.Println("	An error occured while creating .gob file: ", err)
-			return err
-		}
-
+		return fmt.Errorf("error opening log file: %w", err)
 	}
 	defer file.Close()
 	encoder := gob.NewEncoder(file)
@@ -126,31 +145,104 @@ func (m *Manager) Init() {
 	log.Println("Cached URL-embeddings loaded")
 }
 
+// Close stores any newly discovered URLs and persists the cache.
+//
+//  1. Each producer goroutine decides whether a URL is new.
+//  2. All brand-new URLs go down a channel to a single consumer.
+//  3. The consumer batches descriptions (≤ batchSize) and calls
+//     GetBatchedEmbeddings once per batch.
+//  4. It writes the finished embeddings into m.CachedURLEmbeddings
+//     under a mutex so there are no data races.
+//  5. When all producers are done the channel is closed, any
+//     leftover batch is flushed, and the whole cache is written to
+//     data.gob.
 func (m *Manager) Close(newURLs []WebNode) {
-	//	2. Write newly-scraped URL(s) to .gob file?
-	var wg sync.WaitGroup
+	const batchSize = 50
 
-	//iterate with a channel, and add links to chan
-	unSeen := make(chan WebNode, 500)
-	for _, node := range newURLs {
-		wg.Add(1)
-		go func(newNode WebNode) {
-			for cachedURL, _ := range m.CachedURLEmbeddings {
-				if cachedURL == newNode.Url {
-					return
+	embedCh := make(chan WebNode, batchSize)
+	var (
+		wgProducers sync.WaitGroup
+		mu          sync.Mutex // protects m.CachedURLEmbeddings
+	)
+
+	//------------------------------------------------------------------
+	// 1. CONSUMER – runs once, processes batches from embedCh
+	//------------------------------------------------------------------
+	go func() {
+		var (
+			nodes []WebNode // URLs waiting for an embedding
+			descs []string  // matching descriptions
+		)
+
+		flush := func() {
+			if len(nodes) == 0 {
+				return
+			}
+			log.Printf("embedding %d new items...", len(nodes))
+
+			emb, err := GetBatchedEmbeddings(descs)
+			if err != nil {
+				log.Printf("embedding batch failed: %v", err)
+				return
+			}
+
+			mu.Lock()
+			for i, n := range nodes {
+				m.CachedURLEmbeddings[n.Url] = DataContext{
+					Description: n.context.Description,
+					Embedding:   emb.Embeddings[i],
 				}
 			}
-			unSeen <- newNode
-			wg.Done()
+			mu.Unlock()
+
+			// reuse underlying arrays – zero-cost reset
+			nodes = nodes[:0]
+			descs = descs[:0]
+		}
+
+		for n := range embedCh {
+			nodes = append(nodes, n)
+			descs = append(descs, n.context.Description)
+			if len(nodes) == batchSize {
+				flush()
+			}
+		}
+		flush() // flush any tail batch when channel closes
+	}()
+
+	//------------------------------------------------------------------
+	// 2. PRODUCERS – one lightweight goroutine per candidate URL
+	//------------------------------------------------------------------
+	for _, node := range newURLs {
+		wgProducers.Add(1)
+		go func(n WebNode) {
+			defer wgProducers.Done()
+
+			mu.Lock()
+			_, seen := m.CachedURLEmbeddings[n.Url]
+			mu.Unlock()
+			if seen {
+				return
+			}
+
+			embedCh <- n // send only if it’s truly new
 		}(node)
 	}
-	close(unSeen)
-	for node := range unSeen {
-		m.CachedURLEmbeddings[node.Url] = node.context
+
+	//------------------------------------------------------------------
+	// 3. SHUTDOWN & PERSIST
+	//------------------------------------------------------------------
+	wgProducers.Wait() // wait until all sends are finished
+	close(embedCh)     // tells consumer to finish
+
+	// By now the consumer must have flushed everything and exited.
+	// Persist the whole cache.
+	if err := WriteToGob(dataPath, m.CachedURLEmbeddings); err != nil {
+		log.Printf("failed to write cache to %s: %v", dataPath, err)
 	}
-	wg.Wait()
-	//write to .gob file:
-	WriteToGob(dataPath, m.CachedURLEmbeddings)
+	for _, context := range m.CachedURLEmbeddings {
+		fmt.Println(" extract description: ", context.Description)
+	}
 }
 
 // Run executes the CLI application.
