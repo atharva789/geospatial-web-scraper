@@ -16,6 +16,9 @@ import (
 var dataPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/data.gob"
 var findLinksLogPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/logs/findLinks.log"
 
+// GetBatchedEmbeddings sends a slice of strings to the local embedding service
+// and returns the resulting embeddings. The function performs a single HTTP
+// POST request with the provided texts and decodes the JSON response.
 func GetBatchedEmbeddings(texts []string) (EmbeddingResponse, error) {
 	var buf bytes.Buffer
 	newPayload := TextPayload{Texts: texts}
@@ -41,6 +44,9 @@ func GetBatchedEmbeddings(texts []string) (EmbeddingResponse, error) {
 	return res, nil
 }
 
+// WriteToLog opens or creates the specified log file and sets the logger output
+// to this file. It returns the opened *os.File so the caller can close it when
+// finished.
 func WriteToLog(filepath string) (*os.File, error) {
 	logFile, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -50,6 +56,9 @@ func WriteToLog(filepath string) (*os.File, error) {
 	return logFile, nil
 }
 
+// WriteToGob serializes the provided data value to a gob file at the given
+// path. Existing data is appended to, allowing the cache to persist between
+// runs.
 func WriteToGob(filepath string, data interface{}) error {
 	file, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -65,6 +74,8 @@ func WriteToGob(filepath string, data interface{}) error {
 
 }
 
+// GenerateEmbeddings reads all seed descriptions, sends them for embedding, and
+// returns the embeddings in the same order as the seeds.
 func GenerateEmbeddings() ([][]float64, error) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -104,6 +115,10 @@ func GenerateEmbeddings() ([][]float64, error) {
 	return res.Embeddings, nil
 }
 
+// Init prepares the Manager by loading or creating the embedding cache stored
+// on disk. If no cache exists, all seed URLs are embedded and written to the
+// gob file. Loaded or generated embeddings are stored in
+// m.CachedURLEmbeddings.
 func (m *Manager) Init() {
 	data := make(map[string]DataContext)
 	//data is a map of URL : embedding

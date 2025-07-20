@@ -20,6 +20,9 @@ var worklist = make(chan []WebNode)
 var seen = make(map[string]bool)
 var done = make(chan bool)
 
+// BreadthFirst crawls starting URLs breadth-first up to a fixed limit. It
+// returns all discovered URLs in the order they were seen and optionally
+// downloads any directly downloadable resources.
 func BreadthFirst(scrapeQueue []string, downloadDir string) ([]string, error) {
 	log.Println("------------------------------------------------------------------------------")
 	log.Println("							STARTED NEW CRAWL SESSION")
@@ -76,6 +79,8 @@ func BreadthFirst(scrapeQueue []string, downloadDir string) ([]string, error) {
 	return results, nil
 }
 
+// Crawl retrieves links from the given node URL. It applies a token based
+// concurrency limit and delegates HTML parsing to Extract.
 func Crawl(node *WebNode, downloadDir *string) []WebNode {
 	tokens <- struct{}{}
 	list, err := Extract(node, downloadDir)
@@ -86,6 +91,9 @@ func Crawl(node *WebNode, downloadDir *string) []WebNode {
 	return list
 }
 
+// VisitNode recursively walks the HTML node tree collecting child links. Links
+// to geospatial files are recorded with metadata while regular links are queued
+// for further crawling up to a maximum depth.
 func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node) {
 	const maxDepth = 4
 
@@ -122,6 +130,8 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 	}
 }
 
+// HasUnwantedClassOrID returns true if the element has a class or id attribute
+// containing any blacklisted substring defined in UnwantedClassOrIDSubstrings.
 func HasUnwantedClassOrID(n *html.Node) bool {
 	for _, attr := range n.Attr {
 		if attr.Key == "class" || attr.Key == "id" {
@@ -136,6 +146,10 @@ func HasUnwantedClassOrID(n *html.Node) bool {
 	return false
 }
 
+// Extract fetches the URL in the provided WebNode and returns any child links
+// discovered on the page. If the URL points directly to a downloadable
+// geospatial file, the file is scheduled for download and no further links are
+// returned.
 func Extract(node *WebNode, downloadDir *string) ([]WebNode, error) {
 	resp, err := http.Get(node.Url)
 	if err != nil {
@@ -163,6 +177,8 @@ func Extract(node *WebNode, downloadDir *string) ([]WebNode, error) {
 	return links, nil
 }
 
+// ValidateDownloadable checks the HTTP response headers to determine if the
+// resource is a geospatial file that should be downloaded directly.
 func ValidateDownloadable(resp *http.Response, url string) bool {
 	contentType := resp.Header.Get("Content-Type")
 	if GeoMIMETypes[contentType] {
@@ -172,6 +188,9 @@ func ValidateDownloadable(resp *http.Response, url string) bool {
 	return false
 }
 
+// DownloadBuffered saves the body of an HTTP response to disk using a buffered
+// read to avoid holding the connection open. A token channel limits concurrent
+// downloads.
 func DownloadBuffered(resp *http.Response, rawURL string, downloadDir *string) {
 	downloadTokens <- struct{}{}
 
@@ -204,6 +223,9 @@ func DownloadBuffered(resp *http.Response, rawURL string, downloadDir *string) {
 	<-downloadTokens
 }
 
+// Download writes the provided data to a file in downloadDir using the
+// filename derived from the URL. It is used by the secure downloader helper
+// and tests.
 func Download(rawURL string, data []byte, downloadDir *string) error {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
