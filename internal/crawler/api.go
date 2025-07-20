@@ -22,6 +22,10 @@ var findLinksLogPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/logs/
 func GetBatchedEmbeddings(texts []string) (EmbeddingResponse, error) {
 	var buf bytes.Buffer
 	newPayload := TextPayload{Texts: texts}
+	fmt.Println("Batch-Payload: ")
+	for _, item := range newPayload.Texts {
+		fmt.Println("	", item)
+	}
 	if err := json.NewEncoder(&buf).Encode(newPayload); err != nil {
 		log.Printf("	Error occured while encoding data JSON payload: %v", err)
 		return EmbeddingResponse{}, err
@@ -39,7 +43,7 @@ func GetBatchedEmbeddings(texts []string) (EmbeddingResponse, error) {
 	defer resp.Body.Close()
 	var res EmbeddingResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		log.Fatalf("	error returned from vectorization endpoint while embedding search-query: %v", err)
+		log.Fatalf("	error returned from vectorization endpoint while embedding data: %v: %v", err, newPayload)
 	}
 	return res, nil
 }
