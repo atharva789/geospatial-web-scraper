@@ -89,7 +89,18 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 				if strings.Contains(typ, "xml") {
 					xmlLinks = append(xmlLinks, href)
 				}
+			case "b", "h3", "p":
+				if n.FirstChild != nil && n.FirstChild.Type == html.TextNode {
+					md.Description += " " + n.FirstChild.Data
+				}
+			case "h1", "h2":
+				if n.FirstChild != nil && n.FirstChild.Type == html.TextNode {
+					md.Title += " " + n.FirstChild.Data
+				}
+
 			}
+		} else if n.Type == html.TextNode {
+			md.Description += " " + n.Data
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
 			walk(c)
