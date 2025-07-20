@@ -23,7 +23,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 			switch n.Data {
 			case "title":
 				if md.Title == "" && n.FirstChild != nil {
-					md.Title = strings.TrimSpace(n.FirstChild.Data)
+					md.Title += " " + strings.TrimSpace(n.FirstChild.Data)
 				}
 			case "meta":
 				var name, property, content string
@@ -44,7 +44,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 				switch key {
 				case "description", "og:description":
 					if md.Description == "" {
-						md.Description = content
+						md.Description += " " + content
 					}
 				case "keywords":
 					if len(md.Keywords) == 0 && content != "" {
@@ -56,7 +56,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 					}
 				case "og:title":
 					if md.Title == "" {
-						md.Title = content
+						md.Title += " " + content
 					}
 				}
 			case "script":
@@ -70,10 +70,10 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 					var data map[string]interface{}
 					if err := json.Unmarshal([]byte(n.FirstChild.Data), &data); err == nil {
 						if d, ok := data["description"].(string); ok && md.Description == "" {
-							md.Description = d
+							md.Description += " " + d
 						}
 						if t, ok := data["name"].(string); ok && md.Title == "" {
-							md.Title = t
+							md.Title += " " + t
 						}
 					}
 				}
@@ -89,19 +89,22 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 				if strings.Contains(typ, "xml") {
 					xmlLinks = append(xmlLinks, href)
 				}
-			case "b", "h3", "p":
+			case "h1", "h2", "b", "h3", "p", "tr":
 				if n.FirstChild != nil && n.FirstChild.Type == html.TextNode {
 					md.Description += " " + n.FirstChild.Data
-				}
-			case "h1", "h2":
-				if n.FirstChild != nil && n.FirstChild.Type == html.TextNode {
-					md.Title += " " + n.FirstChild.Data
 				}
 
 			}
 		} else if n.Type == html.TextNode {
-			md.Description += " " + n.Data
+			for _, a := range n.Attr {
+				if strings.ToLower(a.Key) == "type" {
+					if strings.ToLower(a.Val) == "text/javascript" {
+
+					}
+				}
+			}
 		}
+
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
 			walk(c)
 		}
