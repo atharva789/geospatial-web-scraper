@@ -52,6 +52,9 @@ type EmbeddingResponse struct {
 // map[string] Cache
 
 // Cache will have Cache{Embedding []float64, Description string, filepath string}
+// SlicesEqualUnordered compares two string slices regardless of element order.
+// It returns true when both slices contain the same elements with the same
+// multiplicities.
 func SlicesEqualUnordered(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
