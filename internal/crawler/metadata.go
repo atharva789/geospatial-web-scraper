@@ -137,6 +137,11 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 		}
 	}
 
+	// Clean any newlines or excess whitespace that may have been
+	// captured from the HTML so they don't appear as escaped "\n" when
+	// printed or marshalled to JSON.
+	md.Description = strings.Join(strings.Fields(md.Description), " ")
+
 	b, _ := json.Marshal(md)
 	return string(b)
 }
