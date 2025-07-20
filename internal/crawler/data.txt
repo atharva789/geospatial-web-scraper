@@ -1,0 +1,13 @@
+Descriptions of different open-access datasets
+
+{
+	"https://dwd-geoportal.de/products/?el-location=%22Global%22": {
+		Source: "German weather service:",
+		Description: "Open Data Access Catalog",
+	},	
+	"https://dwd-geoportal.de/products/G_F5M/": {
+		Source: "German weather service:",
+		Description: "Open Data Access Catalog",
+	},
+
+}

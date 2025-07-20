@@ -21,7 +21,7 @@ func (m *Manager) FindLinks() []WebNode {
 	var buf bytes.Buffer
 	newPayload := TextPayload{Texts: []string{*m.searchQuery}}
 	if err := json.NewEncoder(&buf).Encode(newPayload); err != nil {
-		log.Fatalf("Error occured while encoing search-query JSON payload: %v", err)
+		log.Fatalf("Error occured while encoding search-query JSON payload: %v", err)
 	}
 
 	resp, err := http.Post(
