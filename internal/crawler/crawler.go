@@ -192,35 +192,40 @@ func ValidateDownloadable(resp *http.Response, url string) bool {
 // read to avoid holding the connection open. A token channel limits concurrent
 // downloads.
 func DownloadBuffered(resp *http.Response, rawURL string, downloadDir *string) {
+	// acquire a download slot so we don't overwhelm the disk or network
 	downloadTokens <- struct{}{}
-
-	data, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-
-	if err != nil {
-		log.Printf("Failed to buffer body for download: %v", err)
-	}
+	defer func() { <-downloadTokens }()
 
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		log.Printf("Error parsing URL: %v", err)
+		log.Printf("error parsing URL %s: %v", rawURL, err)
+		resp.Body.Close()
 		return
 	}
+
+	// Determine file name from URL path. If none exists, fall back to a
+	// generic name so the download is still saved.
 	filename := path.Base(parsedURL.Path)
+	if filename == "" || filename == "." || filename == "/" {
+		filename = "download"
+	}
+
 	filepath := path.Join(*downloadDir, filename)
 
-	file, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// Create or truncate the output file then stream the body directly to
+	// disk. Using io.Copy avoids buffering the entire file in memory.
+	outFile, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
-		log.Printf("Error creating file: %v", err)
+		log.Printf("error creating file %s: %v", filepath, err)
+		resp.Body.Close()
 		return
 	}
-	defer file.Close()
+	defer outFile.Close()
 
-	_, err = file.Write(data)
-	if err != nil {
-		log.Printf("Error writing data: %v", err)
+	if _, err := io.Copy(outFile, resp.Body); err != nil {
+		log.Printf("error writing to file %s: %v", filepath, err)
 	}
-	<-downloadTokens
+	resp.Body.Close()
 }
 
 // Download writes the provided data to a file in downloadDir using the
@@ -229,24 +234,23 @@ func DownloadBuffered(resp *http.Response, rawURL string, downloadDir *string) {
 func Download(rawURL string, data []byte, downloadDir *string) error {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		log.Printf("Error parsing URL: %v", err)
+		log.Printf("error parsing URL %s: %v", rawURL, err)
 		return err
 	}
 	filename := path.Base(parsedURL.Path)
+	if filename == "" || filename == "." || filename == "/" {
+		filename = "download"
+	}
 	filepath := path.Join(*downloadDir, filename)
-
-	file, err := os.Create(filepath)
+	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
-		log.Printf("Error creating file: %v", err)
+		log.Printf("error creating file %s: %v", filepath, err)
 		return err
 	}
 	defer file.Close()
-
-	_, err = file.Write(data)
-	if err != nil {
-		log.Printf("Error writing data: %v", err)
+	if _, err := file.Write(data); err != nil {
+		log.Printf("error writing data to %s: %v", filepath, err)
 		return err
 	}
 	return nil
-
 }
