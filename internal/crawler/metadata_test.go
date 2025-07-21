@@ -2,7 +2,7 @@ package crawler
 
 import (
 	"encoding/json"
-	"strings"
+	"net/http"
 	"testing"
 
 	"golang.org/x/net/html"
@@ -16,12 +16,21 @@ type testMeta struct {
 }
 
 func TestExtractMetadata(t *testing.T) {
-	htmlStr := `<html><head><title>Dataset</title><meta name="description" content="some data"><meta name="keywords" content="geo,data"></head><body></body></html>`
-	doc, err := html.Parse(strings.NewReader(htmlStr))
+	url := "https://catalog.data.gov/dataset/electric-vehicle-population-data"
+	downloadURL := "https://data.wa.gov/api/views/f6w7-q2d2/rows.csv?accessType=DOWNLOAD"
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Errorf("Error while requesting url: %v, %v", url, err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Request returned invalid response: %v", err)
+	}
+
+	doc, err := html.Parse(resp.Body)
 	if err != nil {
 		t.Fatalf("parse html: %v", err)
 	}
-	res := ExtractMetadata(doc, "http://example.com/page", "http://example.com/file.zip")
+	res := ExtractMetadata(doc, url, downloadURL)
 	var md testMeta
 	if err := json.Unmarshal([]byte(res), &md); err != nil {
 		t.Fatalf("unmarshal json: %v", err)
