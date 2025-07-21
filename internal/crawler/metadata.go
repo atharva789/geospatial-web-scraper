@@ -21,10 +21,18 @@ var unwanted = []string{
 
 // writes to stringbuilder if the string being appended isn't
 // already in the stringbuilder
-func AddToStringbuilder(strBuf strings.Builder, newStr string) {
-	if strings.Contains(strBuf.String(), newStr) != true {
-		strBuf.WriteString(" " + newStr)
+func AddToStringbuilder(strBuf *strings.Builder, newStr string) {
+	newStr = strings.TrimSpace(newStr)
+	if newStr == "" {
+		return
 	}
+	if strings.Contains(strBuf.String(), newStr) {
+		return
+	}
+	if strBuf.Len() > 0 {
+		strBuf.WriteByte(' ')
+	}
+	strBuf.WriteString(newStr)
 }
 
 // ExtractMetadata parses metadata from the provided HTML document
@@ -70,7 +78,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 			switch n.Data {
 			case "title":
 				if md.Title == "" && n.FirstChild != nil {
-					titleBuf.WriteString(strings.TrimSpace(n.FirstChild.Data))
+					AddToStringbuilder(&titleBuf, n.FirstChild.Data)
 				}
 
 			case "meta":
@@ -92,7 +100,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 				switch key {
 				case "description", "og:description":
 					if md.Description == "" {
-						descBuf.WriteString(" " + content)
+						AddToStringbuilder(&descBuf, content)
 					}
 				case "keywords":
 					if len(md.Keywords) == 0 && content != "" {
@@ -104,7 +112,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 					}
 				case "og:title", "headline":
 					if md.Title == "" {
-						titleBuf.WriteString(" " + content)
+						AddToStringbuilder(&titleBuf, content)
 					}
 				}
 
@@ -126,13 +134,13 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 				var data map[string]interface{}
 				if err := json.Unmarshal([]byte(n.FirstChild.Data), &data); err == nil {
 					if d, ok := data["description"].(string); ok && md.Description == "" {
-						descBuf.WriteString(" " + strings.TrimSpace(d))
+						AddToStringbuilder(&descBuf, d)
 					}
 					if t, ok := data["name"].(string); ok && md.Title == "" {
-						titleBuf.WriteString(" " + strings.TrimSpace(t))
+						AddToStringbuilder(&titleBuf, t)
 					}
 					if h, ok := data["headline"].(string); ok && md.Title == "" {
-						titleBuf.WriteString(" " + strings.TrimSpace(h))
+						AddToStringbuilder(&titleBuf, h)
 					}
 					if kw, ok := data["keywords"].(string); ok && len(md.Keywords) == 0 {
 						for _, p := range strings.Split(kw, ",") {
@@ -159,7 +167,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 			// Collect visible text only if parent is a paragraph-like tag.
 			switch n.Parent.Data {
 			case "p", "h1", "h2", "h3", "h4", "li":
-				descBuf.WriteString(" " + strings.TrimSpace(n.Data))
+				AddToStringbuilder(&descBuf, n.Data)
 			}
 		}
 
@@ -195,10 +203,10 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 		}
 		if err := xml.Unmarshal(data, &x); err == nil {
 			if md.Title == "" {
-				titleBuf.WriteString(" " + strings.TrimSpace(x.Title))
+				AddToStringbuilder(&titleBuf, x.Title)
 			}
 			if md.Description == "" {
-				descBuf.WriteString(" " + strings.TrimSpace(x.Description))
+				AddToStringbuilder(&descBuf, x.Description)
 			}
 		}
 	}
