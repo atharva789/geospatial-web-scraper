@@ -1,30 +1,78 @@
 package crawler
 
 import (
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"golang.org/x/net/html"
 )
 
-// ExtractMetadata parses metadata from the provided HTML document and returns a
-// JSON string describing the download URL and page details.
+// Substrings that mark a subtree as boilerplate (tag OR class/id/role).
+var unwanted = []string{
+	"nav", "menu", "header", "footer", "sidebar", "aside", "ads", "cookie",
+	"usa-banner",
+}
+
+// writes to stringbuilder if the string being appended isn't
+// already in the stringbuilder
+func AddToStringbuilder(strBuf strings.Builder, newStr string) {
+	if strings.Contains(strBuf.String(), newStr) != true {
+		strBuf.WriteString(" " + newStr)
+	}
+}
+
+// ExtractMetadata parses metadata from the provided HTML document
+// and returns a JSON string describing the download URL and page details.
 func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 	md := downloadMetadata{URL: downloadURL}
 	var xmlLinks []string
 
+	var titleBuf, descBuf strings.Builder // cheap, no extra allocs
+
+	// Helper: shouldSkip returns true if node is undesirable.
+	shouldSkip := func(n *html.Node) bool {
+		if n.Type != html.ElementNode {
+			return false
+		}
+		// Tag check.
+		for _, bad := range unwanted {
+			if n.Data == bad {
+				return true
+			}
+		}
+		// Attribute token check.
+		for _, a := range n.Attr {
+			if a.Key == "class" || a.Key == "id" || a.Key == "role" {
+				for _, bad := range unwanted {
+					if strings.Contains(strings.ToLower(a.Val), bad) {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
+
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode {
+		if shouldSkip(n) {
+			return // do not look at, or inside, boilerplate
+		}
+
+		switch n.Type {
+		case html.ElementNode:
 			switch n.Data {
 			case "title":
 				if md.Title == "" && n.FirstChild != nil {
-					md.Title += " " + strings.TrimSpace(n.FirstChild.Data)
+					titleBuf.WriteString(strings.TrimSpace(n.FirstChild.Data))
 				}
+
 			case "meta":
 				var name, property, content string
 				for _, a := range n.Attr {
@@ -34,7 +82,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 					case "property":
 						property = strings.ToLower(a.Val)
 					case "content":
-						content = a.Val
+						content = strings.TrimSpace(a.Val)
 					}
 				}
 				key := name
@@ -44,7 +92,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 				switch key {
 				case "description", "og:description":
 					if md.Description == "" {
-						md.Description += " " + content
+						descBuf.WriteString(" " + content)
 					}
 				case "keywords":
 					if len(md.Keywords) == 0 && content != "" {
@@ -54,54 +102,64 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 						}
 						md.Keywords = parts
 					}
-				case "og:title":
+				case "og:title", "headline":
 					if md.Title == "" {
-						md.Title += " " + content
+						titleBuf.WriteString(" " + content)
 					}
 				}
+
 			case "script":
 				var typ string
 				for _, a := range n.Attr {
-					if strings.ToLower(a.Key) == "type" {
+					if strings.EqualFold(a.Key, "type") {
 						typ = strings.ToLower(a.Val)
+						break
 					}
 				}
-				if strings.Contains(typ, "ld+json") && n.FirstChild != nil {
-					var data map[string]interface{}
-					if err := json.Unmarshal([]byte(n.FirstChild.Data), &data); err == nil {
-						if d, ok := data["description"].(string); ok && md.Description == "" {
-							md.Description += " " + d
-						}
-						if t, ok := data["name"].(string); ok && md.Title == "" {
-							md.Title += " " + t
+				// Accept only JSON-LD; skip every other <script>.
+				if !strings.Contains(typ, "ld+json") {
+					return
+				}
+				if n.FirstChild == nil {
+					return
+				}
+				var data map[string]interface{}
+				if err := json.Unmarshal([]byte(n.FirstChild.Data), &data); err == nil {
+					if d, ok := data["description"].(string); ok && md.Description == "" {
+						descBuf.WriteString(" " + strings.TrimSpace(d))
+					}
+					if t, ok := data["name"].(string); ok && md.Title == "" {
+						titleBuf.WriteString(" " + strings.TrimSpace(t))
+					}
+					if h, ok := data["headline"].(string); ok && md.Title == "" {
+						titleBuf.WriteString(" " + strings.TrimSpace(h))
+					}
+					if kw, ok := data["keywords"].(string); ok && len(md.Keywords) == 0 {
+						for _, p := range strings.Split(kw, ",") {
+							md.Keywords = append(md.Keywords, strings.TrimSpace(p))
 						}
 					}
 				}
+
 			case "link":
 				var href, typ string
 				for _, a := range n.Attr {
-					if a.Key == "href" {
+					switch strings.ToLower(a.Key) {
+					case "href":
 						href = a.Val
-					} else if a.Key == "type" {
+					case "type":
 						typ = strings.ToLower(a.Val)
 					}
 				}
 				if strings.Contains(typ, "xml") {
 					xmlLinks = append(xmlLinks, href)
 				}
-			case "h1", "h2", "b", "h3", "p", "tr":
-				if n.FirstChild != nil && n.FirstChild.Type == html.TextNode {
-					md.Description += " " + n.FirstChild.Data
-				}
-
 			}
-		} else if n.Type == html.TextNode {
-			for _, a := range n.Attr {
-				if strings.ToLower(a.Key) == "type" {
-					if strings.ToLower(a.Val) == "text/javascript" {
-
-					}
-				}
+		case html.TextNode:
+			// Collect visible text only if parent is a paragraph-like tag.
+			switch n.Parent.Data {
+			case "p", "h1", "h2", "h3", "h4", "li":
+				descBuf.WriteString(" " + strings.TrimSpace(n.Data))
 			}
 		}
 
@@ -111,18 +169,23 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 	}
 	walk(doc)
 
+	// Secondary XML harvest (RSS/Atom) – single client with timeout.
+	client := &http.Client{Timeout: 5 * time.Second}
 	base, _ := url.Parse(pageURL)
 	for _, l := range xmlLinks {
 		u, err := base.Parse(l)
 		if err != nil {
 			continue
 		}
-		resp, err := http.Get(u.String())
+		_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		resp, err := client.Get(u.String())
 		if err != nil {
+			cancel()
 			continue
 		}
 		data, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		cancel()
 		if err != nil {
 			continue
 		}
@@ -132,19 +195,18 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 		}
 		if err := xml.Unmarshal(data, &x); err == nil {
 			if md.Title == "" {
-				md.Title = strings.TrimSpace(x.Title)
+				titleBuf.WriteString(" " + strings.TrimSpace(x.Title))
 			}
 			if md.Description == "" {
-				md.Description = strings.TrimSpace(x.Description)
+				descBuf.WriteString(" " + strings.TrimSpace(x.Description))
 			}
 		}
 	}
 
-	// Clean any newlines or excess whitespace that may have been
-	// captured from the HTML so they don't appear as escaped "\n" when
-	// printed or marshalled to JSON.
-	md.Description = strings.Join(strings.Fields(md.Description), " ")
+	// Final clean-up & assign.
+	md.Title = strings.TrimSpace(strings.Join(strings.Fields(titleBuf.String()), " "))
+	md.Description = strings.TrimSpace(strings.Join(strings.Fields(descBuf.String()), " "))
 
-	b, _ := json.Marshal(md)
-	return string(b)
+	out, _ := json.Marshal(md)
+	return string(out)
 }
