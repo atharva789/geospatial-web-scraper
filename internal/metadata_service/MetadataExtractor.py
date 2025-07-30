@@ -1,9 +1,15 @@
 import grpc
 from concurrent import futures
+from schema import ExtractedDocument
 import asyncio
+import json
+import html_text as ht
 import trafilatura
 import extractor_pb2
 import extractor_pb2_grpc
+import math
+from urllib.parse import urlparse
+import hashlib
 
 class ExtractorServicer(extractor_pb2_grpc.ExtractorServicer):
     def Extract(self, request, context):
@@ -11,22 +17,55 @@ class ExtractorServicer(extractor_pb2_grpc.ExtractorServicer):
         url = request.url if request.url else None
         
         ### decide html-text or trafilatura here?
-        extracted_data_json_one = await extract_trafilatura(html)
-        extracted_data_json_two = await extract_html_text(html)
+        extracted_data_one = await extract_trafilatura(html)
+        extracted_data_two = await extract_html_text(html)
         # compare 
 
-        
-
-        json_result = extracted_data_json_one
+        if math.abs(len(extracted_data_one.description) - len(extracted_data_two.description)) <=  (0.20):
+            if len(extracted_data_one.text) >= len(extracted_data_two.text):
+                json_result = extracted_data_one
+            else:
+                json_result = extracted_data_two
 
         if not json_result:
             json_result = '{"error": "extraction failed"}'
 
         return extractor_pb2.ExtractResponse(json_result=json_result)
 
-def extract_trafilatura(html):
-    return trafilatura.extract(html, output_format="json", with_metadata=True)
+async def extract_trafilatura(html: str, url: str) -> ExtractedDocument:
+    json_result = trafilatura.extract(html, output_format="json")
+    data = json.loads(json_result)
+    doc = ExtractedDocument(**data)
+    return doc
 
+async def parse_with_html_text_plus(html: str, url: Optional[str] = None) -> ExtractedDocument:
+    title_text = None
+    title_sel = sel.xpath('//title')
+    if title_sel:
+        title_text = html_text.selector_to_text(title_sel)
+    desc_text = None
+    meta_sel = sel.xpath('//meta[@name="description"]/@content')
+    if meta_sel:
+        desc_text = meta_sel.get().strip()
+    # Full body text
+    full_text = html_text.selector_to_text(sel)
+    hostname = urlparse(url).hostname if url else None
+    uid = hashlib.md5((full_text + (url or "")).encode('utf-8')).hexdigest()
+    doc = ExtractedDocument(
+        date=None,
+        title=title_text,
+        author=None,
+        url=url,
+        hostname=hostname,
+        sitename=None,
+        description=desc_text,
+        text=full_text,
+        language=None,
+        categories=None,
+        tags=None,
+        id=uid,
+    )
+    return doc
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

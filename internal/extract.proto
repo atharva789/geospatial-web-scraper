@@ -11,6 +11,7 @@ service Extractor {
 
 message ExtractRequest {
 	string document = 1;
+	string url = 2;
 }
 
 message ExtractResponse {
