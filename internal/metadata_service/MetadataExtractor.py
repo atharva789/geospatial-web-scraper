@@ -3,7 +3,7 @@ from concurrent import futures
 from .schema import ExtractedDocument
 import asyncio
 import json
-import html_text as ht
+import html_text
 import trafilatura
 import extractor_pb2
 import extractor_pb2_grpc
@@ -18,8 +18,8 @@ class ExtractorServicer(extractor_pb2_grpc.ExtractorServicer):
         ### decide html-text or trafilatura here?
         extracted_data_one = await extract_trafilatura(html, url)
         extracted_data_two = await extract_html_text(html, url)
-        # compare 
-
+        
+        #compare 
         if abs(len(extracted_data_one.description) - len(extracted_data_two.description)) <=  (0.20 * len(extracted_data_one.description)):
             if len(extracted_data_one.text) >= len(extracted_data_two.text):
                 json_result = extracted_data_one
