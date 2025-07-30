@@ -1,31 +1,31 @@
 import grpc
 from concurrent import futures
-from schema import ExtractedDocument
+from .schema import ExtractedDocument
 import asyncio
 import json
 import html_text as ht
 import trafilatura
 import extractor_pb2
 import extractor_pb2_grpc
-import math
 from urllib.parse import urlparse
 import hashlib
 
 class ExtractorServicer(extractor_pb2_grpc.ExtractorServicer):
-    def Extract(self, request, context):
+    async def Extract(self, request, context):
         html = request.html
         url = request.url if request.url else None
         
         ### decide html-text or trafilatura here?
-        extracted_data_one = await extract_trafilatura(html)
-        extracted_data_two = await extract_html_text(html)
+        extracted_data_one = await extract_trafilatura(html, url)
+        extracted_data_two = await extract_html_text(html, url)
         # compare 
 
-        if math.abs(len(extracted_data_one.description) - len(extracted_data_two.description)) <=  (0.20):
+        if abs(len(extracted_data_one.description) - len(extracted_data_two.description)) <=  (0.20 * len(extracted_data_one.description)):
             if len(extracted_data_one.text) >= len(extracted_data_two.text):
                 json_result = extracted_data_one
             else:
                 json_result = extracted_data_two
+        json_result = json_result.model_dump_json(indent=2, ensure_ascii=False)
 
         if not json_result:
             json_result = '{"error": "extraction failed"}'
@@ -38,7 +38,7 @@ async def extract_trafilatura(html: str, url: str) -> ExtractedDocument:
     doc = ExtractedDocument(**data)
     return doc
 
-async def parse_with_html_text_plus(html: str, url: Optional[str] = None) -> ExtractedDocument:
+async def parse_with_html_text(html: str, url: Optional[str] = None) -> ExtractedDocument:
     title_text = None
     title_sel = sel.xpath('//title')
     if title_sel:

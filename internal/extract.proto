@@ -10,10 +10,10 @@ service Extractor {
 }
 
 message ExtractRequest {
-	string document = 1;
+	string html = 1;
 	string url = 2;
 }
 
 message ExtractResponse {
-	string response = 1;
+	string json_response = 1;
 }

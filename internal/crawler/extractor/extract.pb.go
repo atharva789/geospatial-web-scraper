@@ -23,7 +23,7 @@ const (
 
 type ExtractRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Document      string                 `protobuf:"bytes,1,opt,name=document,proto3" json:"document,omitempty"`
+	Html          string                 `protobuf:"bytes,1,opt,name=html,proto3" json:"html,omitempty"`
 	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -59,9 +59,9 @@ func (*ExtractRequest) Descriptor() ([]byte, []int) {
 	return file_extract_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ExtractRequest) GetDocument() string {
+func (x *ExtractRequest) GetHtml() string {
 	if x != nil {
-		return x.Document
+		return x.Html
 	}
 	return ""
 }
@@ -75,7 +75,7 @@ func (x *ExtractRequest) GetUrl() string {
 
 type ExtractResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Response      string                 `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
+	JsonResponse  string                 `protobuf:"bytes,1,opt,name=json_response,json=jsonResponse,proto3" json:"json_response,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -110,9 +110,9 @@ func (*ExtractResponse) Descriptor() ([]byte, []int) {
 	return file_extract_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *ExtractResponse) GetResponse() string {
+func (x *ExtractResponse) GetJsonResponse() string {
 	if x != nil {
-		return x.Response
+		return x.JsonResponse
 	}
 	return ""
 }
@@ -121,12 +121,12 @@ var File_extract_proto protoreflect.FileDescriptor
 
 const file_extract_proto_rawDesc = "" +
 	"\n" +
-	"\rextract.proto\x12\bmetadata\">\n" +
-	"\x0eExtractRequest\x12\x1a\n" +
-	"\bdocument\x18\x01 \x01(\tR\bdocument\x12\x10\n" +
-	"\x03url\x18\x02 \x01(\tR\x03url\"-\n" +
-	"\x0fExtractResponse\x12\x1a\n" +
-	"\bresponse\x18\x01 \x01(\tR\bresponse2K\n" +
+	"\rextract.proto\x12\bmetadata\"6\n" +
+	"\x0eExtractRequest\x12\x12\n" +
+	"\x04html\x18\x01 \x01(\tR\x04html\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\"6\n" +
+	"\x0fExtractResponse\x12#\n" +
+	"\rjson_response\x18\x01 \x01(\tR\fjsonResponse2K\n" +
 	"\tExtractor\x12>\n" +
 	"\aExtract\x12\x18.metadata.ExtractRequest\x1a\x19.metadata.ExtractResponseB\fZ\n" +
 	"/extractorb\x06proto3"
