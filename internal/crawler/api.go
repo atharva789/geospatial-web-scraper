@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"google.golang.org/grpc"
 )
 
 var dataPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/data.gob"
@@ -285,6 +287,13 @@ func Run() {
 		os.Exit(1)
 	}
 
+	// start new gRPC session
+
+	conn, err := grpc.NewClient("localhost:50051", grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		fmt.Println("Error starting metadata gRPC service, exiting")
+	}
+
 	mg := Manager{
 		secure:       *noSec,
 		downloadPath: downloadDir,
@@ -297,6 +306,7 @@ func Run() {
 		worklist:     make(chan []WebNode),
 		done:         make(chan bool),
 		seen:         make(map[string]bool),
+		conn:         conn,
 	}
 	mg.Init()
 	// Begin search

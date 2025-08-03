@@ -1,5 +1,9 @@
 package crawler
 
+import (
+	"google.golang.org/grpc"
+)
+
 type WebNode struct {
 	Url              string
 	Parent           *WebNode // node is a parent if parentURL == "root"
@@ -21,6 +25,7 @@ type Manager struct {
 	worklist            chan []WebNode
 	done                chan bool
 	seen                map[string]bool
+	conn                *grpc.ClientConn
 }
 
 // DataContext holds metadata about a public data source.

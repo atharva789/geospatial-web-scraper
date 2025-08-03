@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -9,8 +10,12 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
+
+	pb "geospatial-web-scraper/internal/crawler/extractor"
 
 	"golang.org/x/net/html"
+	"google.golang.org/grpc"
 )
 
 var tokens = make(chan struct{}, 40)
@@ -94,9 +99,10 @@ func Crawl(node *WebNode, downloadDir *string) []WebNode {
 // VisitNode recursively walks the HTML node tree collecting child links. Links
 // to geospatial files are recorded with metadata while regular links are queued
 // for further crawling up to a maximum depth.
-func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node) {
+func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node, pbConn ...*grpc.ClientConn) {
 	const maxDepth = 4
-
+	var meta string
+	ctx, _ := context.WithTimeout(context.Background(), time.Millisecond*60)
 	if n.Type == html.ElementNode && n.Data == "a" {
 
 		for _, a := range n.Attr {
@@ -112,7 +118,23 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 			}
 			ext := strings.ToLower(path.Ext(link.Path))
 			if GeoFileExtensions[ext] {
-				meta := ExtractMetadata(root, resp.Request.URL.String(), link.String())
+				// make new gRPC ClientConnInterface
+				if len(pbConn) == 1 {
+					bytes, _ := io.ReadAll(resp.Body)
+					request := pb.ExtractRequest{
+						Html: string(bytes),
+						Url:  resp.Request.URL.String(),
+					}
+					ExClient := pb.NewExtractorClient(pbConn[0])
+					exResp, err := ExClient.Extract(ctx, &request)
+					if err != nil {
+						log.Println("	error recieved while making gRPC request to ")
+					}
+					meta = exResp.JsonResponse
+
+				} else {
+					meta = ExtractMetadata(root, resp.Request.URL.String(), link.String())
+				}
 				if parent.Depth+1 < maxDepth {
 					*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: meta}})
 				}
