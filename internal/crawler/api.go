@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"encoding/json"
 	"flag"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
 )
@@ -288,11 +290,13 @@ func Run() {
 	}
 
 	// start new gRPC session
-
-	conn, err := grpc.NewClient("localhost:50051", grpc.WithInsecure(), grpc.WithBlock())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, "localhost:50051", grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		fmt.Println("Error starting metadata gRPC service, exiting")
 	}
+	defer conn.Close()
 
 	mg := Manager{
 		secure:       *noSec,
