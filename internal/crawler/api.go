@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 )
 
@@ -298,6 +299,12 @@ func Run() {
 	}
 	defer conn.Close()
 
+	envErr := godotenv.Load("../.env")
+	if envErr != nil {
+		fmt.Errorf("Error loading environment variables: %v", envErr)
+	}
+	LlmApiKey := os.Getenv("GROQ_API_KEY")
+
 	mg := Manager{
 		secure:       *noSec,
 		downloadPath: downloadDir,
@@ -311,6 +318,8 @@ func Run() {
 		done:         make(chan bool),
 		seen:         make(map[string]bool),
 		conn:         conn,
+		httpClient:   http.Client{Timeout: 5 * time.Second},
+		LlmApiKey:    LlmApiKey,
 	}
 	mg.Init()
 	// Begin search

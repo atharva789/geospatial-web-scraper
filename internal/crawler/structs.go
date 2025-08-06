@@ -1,6 +1,8 @@
 package crawler
 
 import (
+	"net/http"
+
 	"google.golang.org/grpc"
 )
 
@@ -25,7 +27,9 @@ type Manager struct {
 	worklist            chan []WebNode
 	done                chan bool
 	seen                map[string]bool
-	conn                *grpc.ClientConn
+	conn                *grpc.ClientConn // python metadata service
+	httpClient          *http.Client
+	LlmApiKey           string
 }
 
 // DataContext holds metadata about a public data source.
@@ -48,6 +52,19 @@ type TextPayload struct {
 
 type EmbeddingResponse struct {
 	Embeddings [][]float64 `json:"embeddings"`
+}
+
+type LLMQuery struct {
+	Model    string       `json:"model"`
+	Messages []LLMMessage `json:"messages"`
+}
+
+type LLMMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type LLMResponse struct {
 }
 
 //how .gob files will be stored

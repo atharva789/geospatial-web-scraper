@@ -1,10 +1,90 @@
 package crawler
 
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"reflect"
+	"strings"
+)
+
+// Parses a 'DataQuery' into a structured output by passing a valid struct
+func ParseLLMResponse[T any](raw string) (T, error) {
+	var result T
+	err := json.Unmarshal([]byte(raw), &result)
+	return result, err
+}
+
+const endpoint = "https://api.groq.com/openai/v1/chat/completions"
+const model = "llama-3.3-70b-versatile"
+
+// Converts an empty struct into a struct's field-type
+func StrucutreOutput(outputStruct any) string {
+	o := reflect.TypeOf(outputStruct)
+	var b strings.Builder
+	b.WriteString("{\n")
+	for i := 0; i < o.NumField(); i++ {
+		field := o.Field(i)
+		b.WriteString(fmt.Sprintf("%05d\n %v: %v,", field, field.Type))
+	}
+	b.WriteString("}")
+	return b.String()
+}
+
 // DataQuestion inputs a query (string) and data (string),
-// returns a general JSON LLM response
-func DataQuery(query, data string, structure ...struct{}) string {
-	return ""
-} // we could use this to form structured queries.
+// returns a structured output from LLM specified by the user
+func (m *Manager) DataQuery(prompt, query, data string, structure any) (any, error) {
+	output_format := StrucutreOutput(structure)
+	prompt = prompt + fmt.Sprintf("\n Return your response in the specified JSON format ONLY.")
+	content := fmt.Sprintf("%v \n Question: %v \n Context: %v", output_format, query, data)
+	userMsg := LLMMessage{Role: "user", Content: content}
+	jsonMsg := LLMMessage{Role: "system", Content: "You are a strucured output generator"}
+	jsonData, err := json.Marshal(LLMQuery{Model: model, Messages: []LLMMessage{userMsg, jsonMsg}})
+	if err != nil {
+		return "", err
+	}
+	if m.httpClient != nil {
+		//build request
+		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
+		if err != nil {
+			fmt.Errorf("an error occured while making LLM-request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", m.LlmApiKey)
+		resp, err := m.httpClient.Do(req)
+		if err != nil {
+			fmt.Errorf("	(DataQuery error) Error returned from LLM response: %v", err)
+			return "", err
+		}
+
+		defer resp.Body.Close()
+		//decode data into struct 'LLMResponse'
+
+		body, _ := ioutil.ReadAll(resp.Body)
+
+		var apiResp struct {
+			Choices []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal(body, &apiResp); err != nil {
+			fmt.Errorf("	(DataQuery error) Error returned when parsing LLM response: %v", err)
+		}
+
+		output := apiResp.Choices[0].Message.Content
+		if err := json.Unmarshal([]byte(output), &structure); err != nil {
+			return "", err
+		}
+
+		return structure, nil
+	}
+	return "", errors.New("DataQuery Error, no response from LLM inference")
+}
 
 func CompareEntities(query, dataOne, dataTwo string) string {
 	return ""
