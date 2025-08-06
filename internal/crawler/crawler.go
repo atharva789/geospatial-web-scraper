@@ -107,8 +107,8 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 	var extractRequest pb.ExtractRequest
 	var exClient pb.ExtractorClient
 	var wg sync.WaitGroup
-	var betterDescription string
-	query := "which JSON has more differentiable description: repy 1 or 2 ONLY"
+	var betterDescription any
+	query := "which JSON has more differentiable description/better for scraping: repy 1 or 2 ONLY"
 	ctx, _ := context.WithTimeout(context.Background(), time.Millisecond*60)
 	if n.Type == html.ElementNode && n.Data == "a" {
 
@@ -145,10 +145,17 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 					fmt.Println("	Golang metadata extraction result: ", goMeta)
 				}()
 				wg.Wait()
-				fmt.Println("	Python metadata extraction resultL ", meta)
-				betterDescription = CompareEntities(query, meta, goMeta)
+				fmt.Println("	Python metadata extraction result: ", meta)
+				betterDescription = CompareEntities("You are a web-scraping expert.", query, meta, goMeta)
+				metadata := betterDescription.(string)
+				//returns 1 or 2
+				if betterDescription == "1" {
+					betterDescription = meta
+				} else {
+					betterDescription = goMeta
+				}
 				if parent.Depth+1 < maxDepth {
-					*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: meta}})
+					*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: metadata}})
 				}
 			} else if parent.Depth+1 < maxDepth {
 				*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1})

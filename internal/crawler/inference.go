@@ -35,11 +35,17 @@ func StrucutreOutput(outputStruct any) string {
 }
 
 // DataQuestion inputs a query (string) and data (string),
-// returns a structured output from LLM specified by the user
+// returns a structured output from LLM specified by the user.
+// Pass 'nil' for structure for making basic queries
 func (m *Manager) DataQuery(prompt, query, data string, structure any) (any, error) {
-	output_format := StrucutreOutput(structure)
-	prompt = prompt + fmt.Sprintf("\n Return your response in the specified JSON format ONLY.")
-	content := fmt.Sprintf("%v \n Question: %v \n Context: %v", output_format, query, data)
+	var output_format string
+	if structure != nil {
+		output_format = StrucutreOutput(structure)
+		prompt = prompt + fmt.Sprintf("\n Return your response in the specified JSON format ONLY.\n")
+	} else {
+		output_format = ""
+	}
+	content := fmt.Sprintf("%v\n%v \n Question: %v \n Context: %v", prompt, output_format, query, data)
 	userMsg := LLMMessage{Role: "user", Content: content}
 	jsonMsg := LLMMessage{Role: "system", Content: "You are a strucured output generator"}
 	jsonData, err := json.Marshal(LLMQuery{Model: model, Messages: []LLMMessage{userMsg, jsonMsg}})
@@ -77,15 +83,23 @@ func (m *Manager) DataQuery(prompt, query, data string, structure any) (any, err
 		}
 
 		output := apiResp.Choices[0].Message.Content
+		if structure == nil {
+			return output, nil
+		}
 		if err := json.Unmarshal([]byte(output), &structure); err != nil {
 			return "", err
 		}
 
 		return structure, nil
 	}
-	return "", errors.New("DataQuery Error, no response from LLM inference")
+	return "", errors.New("DataQuery Error, no http client specified")
 }
 
-func CompareEntities(query, dataOne, dataTwo string) string {
-	return ""
+func (m *Manager) CompareEntities(prompt, query, dataOne, dataTwo string) any {
+	data := fmt.Sprintf("1: %v\n 2:%v")
+	out, err := m.DataQuery(prompt, query, data, nil)
+	if err != nil {
+		fmt.Errorf("	(CompareEntities Error): %v", err)
+	}
+	return out
 }

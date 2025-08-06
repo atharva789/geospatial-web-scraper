@@ -64,9 +64,6 @@ type LLMMessage struct {
 	Content string `json:"content"`
 }
 
-type LLMResponse struct {
-}
-
 //how .gob files will be stored
 // link string : DataContext{Description string, Embedding []float64}
 
