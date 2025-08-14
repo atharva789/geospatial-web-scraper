@@ -1,16 +1,32 @@
 import grpc
 from concurrent import futures
-from .schema import ExtractedDocument
 import asyncio
 import json
 import html_text
 import trafilatura
-import extractor_pb2
-import extractor_pb2_grpc
+import extract_pb2
+import extract_pb2_grpc
 from urllib.parse import urlparse
 import hashlib
 
-class ExtractorServicer(extractor_pb2_grpc.ExtractorServicer):
+from pydantic import BaseModel
+from typing import Optional, List
+
+class ExtractedDocument(BaseModel):
+    date: Optional[str]
+    title: Optional[str]
+    author: Optional[str] # the source/govt agency
+    url: Optional[str]
+    hostname: Optional[str]
+    sitename: Optional[str]
+    description: Optional[str]
+    text: str
+    language: Optional[str]
+    categories: Optional[List[str]]
+    tags: Optional[List[str]]
+    id: str
+
+class ExtractorServicer(extract_pb2_grpc.ExtractorServicer):
     async def Extract(self, request, context):
         html = request.html
         url = request.url if request.url else None
@@ -30,7 +46,7 @@ class ExtractorServicer(extractor_pb2_grpc.ExtractorServicer):
         if not json_result:
             json_result = '{"error": "extraction failed"}'
 
-        return extractor_pb2.ExtractResponse(json_result=json_result)
+        return extract_pb2.ExtractResponse(json_result=json_result)
 
 async def extract_trafilatura(html: str, url: str) -> ExtractedDocument:
     json_result = trafilatura.extract(html, output_format="json")
@@ -69,7 +85,7 @@ async def parse_with_html_text(html: str, url: Optional[str] = None) -> Extracte
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    extractor_pb2_grpc.add_ExtractorServicer_to_server(ExtractorServicer(), server)
+    extract_pb2_grpc.add_ExtractorServicer_to_server(ExtractorServicer(), server)
     server.add_insecure_port('[::]:50051')
     server.start()
     print("Server running on port 50051")

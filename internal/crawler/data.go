@@ -92,20 +92,6 @@ var UnwantedClassOrIDSubstrings = map[string]bool{
 	"identifier": true,
 }
 
-// structure:
-//
-//	URLs, descriptions, and embeddings are 1-1 in 3 slices:
-//	new Manager session -> validate URL-description-embedding slices (ernsure they exist and are 1-1) -->
-//	validation:
-//			1. find last URL index
-//			2. check description, embedding
-//			if embedding/description exists, no URL:
-//				1. Delete row
-//			if URL and
-//				1. no description but embedding: continue
-//				2. no dembedding: add to 'embedding' queue, -> /embed -> add embedding
-//
-
 // PublicGeospatialDataSeeds maps each seed URL to its DataContext.
 var PublicGeospatialDataSeeds = map[string]DataContext{
 	// ------------------------------------------------------------------
@@ -131,7 +117,7 @@ var PublicGeospatialDataSeeds = map[string]DataContext{
 	"https://nassgeodata.gmu.edu/CropScape/": {
 		Description: "USDA CropScape interface for Cropland Data Layer raster downloads.",
 	},
-	"https://www.nrcs.usda.gov/resources/data-and-reports/ssurgo": {
+	"https://www.usda.gov/sites/default/files/documents/data.json": {
 		Description: "NRCS SSURGO detailed soil survey database downloads.",
 	},
 	"https://www2.census.gov/geo/tiger/": {

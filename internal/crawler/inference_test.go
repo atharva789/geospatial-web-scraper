@@ -43,7 +43,7 @@ type sampleStruct struct {
 func TestDataQueryWithStructure(t *testing.T) {
 	body := `{"choices":[{"message":{"content":"{\\"msg\\":\\"hello\\"}"}}]}`
 	m := Manager{httpClient: newTestClient(body)}
-	out, err := m.DataQuery("prompt", "question", "data", sampleStruct{})
+	out, err := m.DataQuery("You are parsing html.", "question: what's the text in this html", "data", sampleStruct{})
 	if err != nil {
 		t.Fatalf("DataQuery returned error: %v", err)
 	}

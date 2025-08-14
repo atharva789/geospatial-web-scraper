@@ -13,31 +13,135 @@ import (
 	"golang.org/x/net/html"
 )
 
-// Substrings that mark a subtree as boilerplate (tag OR class/id/role).
-var unwanted = []string{
-	"nav", "menu", "header", "footer", "sidebar", "aside", "ads", "cookie",
-	"usa-banner",
+func ContainsAnySubstring(s string, subs []string) bool {
+	for _, sub := range subs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
 }
 
-// writes to stringbuilder if the string being appended isn't
-// already in the stringbuilder
-func AddToStringbuilder(strBuf *strings.Builder, newStr string) {
+// Ancestors returns the chain of ancestors from parent up to root.
+func Ancestors(n *html.Node) []*html.Node {
+	var ancestors []*html.Node
+	for p := n.Parent; p != nil; p = p.Parent {
+		ancestors = append(ancestors, p)
+	}
+	return ancestors
+}
+
+// IsDescendantOf reports whether n has 'ancestor' in its parent chain.
+func IsDescendantOf(n, ancestor *html.Node) bool {
+	if n == nil || ancestor == nil {
+		return false
+	}
+	for p := n.Parent; p != nil; p = p.Parent {
+		if p == ancestor {
+			return true
+		}
+	}
+	return false
+}
+
+// ToString renders a simple markdown-like table.
+// If Headers is non-empty, groups Data into rows of len(Headers).
+func (t *TableData) ToString() string {
+	if len(t.Headers) == 0 && len(t.Data) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	writeLine := func(cols []string) {
+		b.WriteString(strings.Join(cols, " | "))
+		b.WriteByte('\n')
+	}
+
+	if len(t.Headers) > 0 {
+		// header
+		writeLine(t.Headers)
+		// separator
+		sep := make([]string, len(t.Headers))
+		for i := range sep {
+			sep[i] = "---"
+		}
+		writeLine(sep)
+
+		// rows
+		nCols := len(t.Headers)
+		row := make([]string, 0, nCols)
+		for _, d := range t.Data {
+			row = append(row, strings.TrimSpace(d))
+			if len(row) == nCols {
+				writeLine(row)
+				row = row[:0]
+			}
+		}
+		// if leftover cells exist, flush them
+		if len(row) > 0 {
+			// pad to nCols for a consistent row
+			for len(row) < nCols {
+				row = append(row, "")
+			}
+			writeLine(row)
+		}
+	} else {
+		// no headers; just one row with all data
+		clean := make([]string, 0, len(t.Data))
+		for _, d := range t.Data {
+			clean = append(clean, strings.TrimSpace(d))
+		}
+		writeLine(clean)
+	}
+
+	return b.String()
+}
+
+// AddToStringBuilder de-duplicates by substring and skips empty writes.
+func AddToStringBuilder(s *strings.Builder, newStr string) {
 	newStr = strings.TrimSpace(newStr)
 	if newStr == "" {
 		return
 	}
-	if strings.Contains(strBuf.String(), newStr) {
+	if strings.Contains(s.String(), newStr) {
 		return
 	}
-	if strBuf.Len() > 0 {
-		strBuf.WriteByte(' ')
+	if s.Len() > 0 && !strings.HasSuffix(s.String(), "\n") {
+		s.WriteByte('\n')
 	}
-	strBuf.WriteString(newStr)
+	s.WriteString(newStr)
+}
+
+// CheckDescendants - placeholder for future use.
+func CheckDescendants(n *html.Node) {}
+
+// CheckAncestors finds the nearest ancestor whose tag name or attribute values
+// suggest a table-like container. Returns that node or nil.
+func CheckAncestors(n *html.Node) *html.Node {
+	tableAttrHints := []string{"list", "table", "product"}
+	tableTags := []string{"table", "tr", "li", "ul", "ol", "thead", "tbody", "th", "td"}
+
+	for _, w := range Ancestors(n) {
+		// tag check
+		for _, tg := range tableTags {
+			if w.Type == html.ElementNode && w.Data == tg {
+				return w
+			}
+		}
+		// attribute value hint check
+		for _, a := range w.Attr {
+			if ContainsAnySubstring(a.Val, tableAttrHints) {
+				return w
+			}
+		}
+	}
+	return nil
 }
 
 // ExtractMetadata parses metadata from the provided HTML document
 // and returns a JSON string describing the download URL and page details.
 func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
+	unwanted := []string{}
 	md := downloadMetadata{URL: downloadURL}
 	var xmlLinks []string
 
@@ -67,6 +171,12 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 		return false
 	}
 
+	tableData := &TableData{
+		Root:    nil,
+		Headers: []string{},
+		Data:    []string{},
+	}
+
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if shouldSkip(n) {
@@ -78,7 +188,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 			switch n.Data {
 			case "title":
 				if md.Title == "" && n.FirstChild != nil {
-					AddToStringbuilder(&titleBuf, n.FirstChild.Data)
+					AddToStringBuilder(&titleBuf, n.FirstChild.Data)
 				}
 
 			case "meta":
@@ -100,7 +210,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 				switch key {
 				case "description", "og:description":
 					if md.Description == "" {
-						AddToStringbuilder(&descBuf, content)
+						AddToStringBuilder(&descBuf, content)
 					}
 				case "keywords":
 					if len(md.Keywords) == 0 && content != "" {
@@ -112,7 +222,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 					}
 				case "og:title", "headline":
 					if md.Title == "" {
-						AddToStringbuilder(&titleBuf, content)
+						AddToStringBuilder(&titleBuf, content)
 					}
 				}
 
@@ -134,13 +244,13 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 				var data map[string]interface{}
 				if err := json.Unmarshal([]byte(n.FirstChild.Data), &data); err == nil {
 					if d, ok := data["description"].(string); ok && md.Description == "" {
-						AddToStringbuilder(&descBuf, d)
+						AddToStringBuilder(&descBuf, d)
 					}
 					if t, ok := data["name"].(string); ok && md.Title == "" {
-						AddToStringbuilder(&titleBuf, t)
+						AddToStringBuilder(&titleBuf, t)
 					}
 					if h, ok := data["headline"].(string); ok && md.Title == "" {
-						AddToStringbuilder(&titleBuf, h)
+						AddToStringBuilder(&titleBuf, h)
 					}
 					if kw, ok := data["keywords"].(string); ok && len(md.Keywords) == 0 {
 						for _, p := range strings.Split(kw, ",") {
@@ -162,12 +272,49 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 				if strings.Contains(typ, "xml") {
 					xmlLinks = append(xmlLinks, href)
 				}
+			case "table":
+				tableData.Root = n
 			}
+
 		case html.TextNode:
-			// Collect visible text only if parent is a paragraph-like tag.
-			switch n.Parent.Data {
-			case "p", "h1", "h2", "h3", "h4", "li":
-				AddToStringbuilder(&descBuf, n.Data)
+			txt := strings.TrimSpace(n.Data)
+			if txt != "" {
+				switch n.Parent.Data {
+				case "th":
+					if tableData.Root != nil && IsDescendantOf(n, tableData.Root) {
+						// add unique header
+						dup := false
+						for _, h := range tableData.Headers {
+							if h == txt {
+								dup = true
+								break
+							}
+						}
+						if !dup {
+							tableData.Headers = append(tableData.Headers, txt)
+						}
+					}
+				case "td":
+					tableData.Data = append(tableData.Data, txt)
+				case "div":
+					_ = CheckAncestors(n) // available for future logic
+				case "h1":
+					AddToStringBuilder(&descBuf, "# "+txt)
+				case "h2":
+					AddToStringBuilder(&descBuf, "## "+txt)
+				case "h3", "h4":
+					AddToStringBuilder(&descBuf, "### "+txt)
+				case "pre":
+					_ = CheckAncestors(n)
+					AddToStringBuilder(&descBuf, "```\n"+txt+"\n```")
+				case "li", "b":
+					AddToStringBuilder(&descBuf, "- "+txt)
+				case "style":
+
+				default:
+					// plain text fallthrough (optional)
+					AddToStringBuilder(&descBuf, txt)
+				}
 			}
 		}
 
@@ -176,6 +323,11 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 		}
 	}
 	walk(doc)
+
+	// Append any table we collected.
+	if s := tableData.ToString(); strings.TrimSpace(s) != "" {
+		AddToStringBuilder(&descBuf, s)
+	}
 
 	// Secondary XML harvest (RSS/Atom) – single client with timeout.
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -203,10 +355,10 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 		}
 		if err := xml.Unmarshal(data, &x); err == nil {
 			if md.Title == "" {
-				AddToStringbuilder(&titleBuf, x.Title)
+				AddToStringBuilder(&titleBuf, x.Title)
 			}
 			if md.Description == "" {
-				AddToStringbuilder(&descBuf, x.Description)
+				AddToStringBuilder(&descBuf, x.Description)
 			}
 		}
 	}
@@ -217,4 +369,8 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 
 	out, _ := json.Marshal(md)
 	return string(out)
+}
+
+func CheckAncesstors(n *html.Node) {
+	panic("unimplemented")
 }

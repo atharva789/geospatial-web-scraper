@@ -125,8 +125,8 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 			}
 			ext := strings.ToLower(path.Ext(link.Path))
 			if GeoFileExtensions[ext] {
-				// make new gRPC ClientConnInterface
 
+				// make new gRPC ClientConnInterface
 				bytes, _ := io.ReadAll(resp.Body)
 				extractRequest = pb.ExtractRequest{
 					Html: string(bytes),

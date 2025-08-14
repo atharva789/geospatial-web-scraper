@@ -3,6 +3,7 @@ package crawler
 import (
 	"net/http"
 
+	"golang.org/x/net/html"
 	"google.golang.org/grpc"
 )
 
@@ -40,10 +41,11 @@ type DataContext struct {
 
 // downloadMetadata represents extracted information about a downloadable file.
 type downloadMetadata struct {
-	Title       string   `json:"title,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Keywords    []string `json:"keywords,omitempty"`
-	URL         string   `json:"url"`
+	Title       string            `json:"title,omitempty"`
+	Source      *downloadMetadata `json:"source,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Keywords    []string          `json:"keywords,omitempty"`
+	URL         string            `json:"url"`
 }
 
 type TextPayload struct {
@@ -62,6 +64,12 @@ type LLMQuery struct {
 type LLMMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+}
+
+type TableData struct {
+	Root    *html.Node
+	Headers []string
+	Data    []string
 }
 
 //how .gob files will be stored

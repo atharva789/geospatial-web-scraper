@@ -318,7 +318,7 @@ func Run() {
 		done:         make(chan bool),
 		seen:         make(map[string]bool),
 		conn:         conn,
-		httpClient:   http.Client{Timeout: 5 * time.Second},
+		httpClient:   &http.Client{Timeout: 5 * time.Second},
 		LlmApiKey:    LlmApiKey,
 	}
 	mg.Init()

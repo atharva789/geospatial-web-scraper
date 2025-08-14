@@ -4,7 +4,7 @@ from typing import Optional, List
 class ExtractedDocument(BaseModel):
     date: Optional[str]
     title: Optional[str]
-    author: Optional[str]
+    author: Optional[str] # the source/govt agency
     url: Optional[str]
     hostname: Optional[str]
     sitename: Optional[str]
