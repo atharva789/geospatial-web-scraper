@@ -1,7 +1,6 @@
 package crawler
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -10,13 +9,8 @@ import (
 	"os"
 	"path"
 	"strings"
-	"sync"
-	"time"
-
-	pb "geospatial-web-scraper/internal/crawler/extractor"
 
 	"golang.org/x/net/html"
-	"google.golang.org/grpc"
 )
 
 var tokens = make(chan struct{}, 40)
@@ -100,73 +94,71 @@ func Crawl(node *WebNode, downloadDir *string) []WebNode {
 // VisitNode recursively walks the HTML node tree collecting child links. Links
 // to geospatial files are recorded with metadata while regular links are queued
 // for further crawling up to a maximum depth.
-func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node, pbConn ...*grpc.ClientConn) {
+func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node) {
 	const maxDepth = 4
-	var meta string
-	var goMeta string
-	var extractRequest pb.ExtractRequest
-	var exClient pb.ExtractorClient
-	var wg sync.WaitGroup
-	var betterDescription any
-	query := "which JSON has more differentiable description/better for scraping: repy 1 or 2 ONLY"
-	ctx, _ := context.WithTimeout(context.Background(), time.Millisecond*60)
-	if n.Type == html.ElementNode && n.Data == "a" {
 
-		for _, a := range n.Attr {
-			if a.Key != "href" {
-				continue
-			}
-			if strings.HasPrefix(a.Val, "mailto:") || strings.HasPrefix(a.Val, "tel:") {
-				continue
-			}
-			link, err := resp.Request.URL.Parse(a.Val)
-			if err != nil {
-				continue // ignore bad URLs
-			}
-			ext := strings.ToLower(path.Ext(link.Path))
-			if GeoFileExtensions[ext] {
-
-				// make new gRPC ClientConnInterface
-				bytes, _ := io.ReadAll(resp.Body)
-				extractRequest = pb.ExtractRequest{
-					Html: string(bytes),
-					Url:  resp.Request.URL.String(),
+	if n.Type == html.ElementNode {
+		switch n.Data {
+		case "a":
+			for _, a := range n.Attr {
+				if a.Key != "href" {
+					continue
 				}
-				exClient = pb.NewExtractorClient(pbConn[0])
-				exResp, err := exClient.Extract(ctx, &extractRequest)
+				if strings.HasPrefix(a.Val, "mailto:") || strings.HasPrefix(a.Val, "tel:") {
+					continue
+				}
+				link, err := resp.Request.URL.Parse(a.Val)
 				if err != nil {
-					log.Println("	error while expecting response from Metadata gRPC service")
+					continue // ignore bad URLs
 				}
-				meta = exResp.JsonResponse
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					goMeta = ExtractMetadata(root, resp.Request.URL.String(), link.String())
-					fmt.Println("	Golang metadata extraction result: ", goMeta)
-				}()
-				wg.Wait()
-				fmt.Println("	Python metadata extraction result: ", meta)
-				betterDescription = CompareEntities("You are a web-scraping expert.", query, meta, goMeta)
-				metadata := betterDescription.(string)
-				//returns 1 or 2
-				if betterDescription == "1" {
-					betterDescription = meta
-				} else {
-					betterDescription = goMeta
+				ext := strings.ToLower(path.Ext(link.Path))
+				if GeoFileExtensions[ext] || ContainsAnySubstring(link.Path, []string{"open", "open-data", "data-access"}) {
+					metadata := ExtractMetadata(root, resp.Request.URL.String(), link.String())
+					if parent.Depth+1 < maxDepth {
+						*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: metadata}})
+					}
 				}
-				if parent.Depth+1 < maxDepth {
-					*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: metadata}})
-				}
-			} else if parent.Depth+1 < maxDepth {
-				*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1})
 			}
+		case "input":
+			// check if placeholder tag, id contains words like "search", "data": if yes, search
+			// check if ancesstors contain keywords ("search", "data")
+			contains := false
+			var newLinks []responseStruct
+			for _, a := range n.Attr {
+				if strings.Contains(a.Val, "data") && strings.Contains(a.Val, "search") {
+					contains = true
+					// normalise search query
+					newLinks = searchCatalog("search-query")
+				}
+			}
+			if contains == false {
+				ancesstors := Ancestors(n)
+				depth := 0
+				for _, p := range ancesstors {
+					depth++
+					if depth > 5 || p.Data == "body" {
+						break
+					}
+					if p.Type == html.TextNode && ContainsAnySubstring(p.Data, []string{"data", "search"}) {
+						// do something
+						contains = true
+					}
+				}
+			}
+
+			if parent.Depth+1 < maxDepth {
+				for _, link := range newLinks {
+					*links = append(*links, WebNode{Url: link.URL, Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: link.Metadata}})
+				}
+			}
+
 		}
 	}
 
 	// Recurse into children
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && HasUnwantedClassOrID(c) == false {
-			VisitNode(c, links, resp, parent, root, pbConn[0])
+			VisitNode(c, links, resp, parent, root)
 		}
 	}
 }
@@ -294,4 +286,14 @@ func Download(rawURL string, data []byte, downloadDir *string) error {
 		return err
 	}
 	return nil
+}
+
+type responseStruct struct {
+	URL      string
+	Metadata string
+}
+
+func searchCatalog(query string) []responseStruct {
+	relevantLinks := []responseStruct{}
+	return relevantLinks
 }
