@@ -1,7 +1,6 @@
 package crawler
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -10,13 +9,8 @@ import (
 	"os"
 	"path"
 	"strings"
-	"sync"
-	"time"
-
-	pb "geospatial-web-scraper/internal/crawler/extractor"
 
 	"golang.org/x/net/html"
-	"google.golang.org/grpc"
 )
 
 var tokens = make(chan struct{}, 40)
@@ -100,18 +94,9 @@ func Crawl(node *WebNode, downloadDir *string) []WebNode {
 // VisitNode recursively walks the HTML node tree collecting child links. Links
 // to geospatial files are recorded with metadata while regular links are queued
 // for further crawling up to a maximum depth.
-func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node, pbConn ...*grpc.ClientConn) {
+func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node) {
 	const maxDepth = 4
-	var meta string
-	var goMeta string
-	var extractRequest pb.ExtractRequest
-	var exClient pb.ExtractorClient
-	var wg sync.WaitGroup
-	var betterDescription any
-	query := "which JSON has more differentiable description/better for scraping: repy 1 or 2 ONLY"
-	ctx, _ := context.WithTimeout(context.Background(), time.Millisecond*60)
 	if n.Type == html.ElementNode && n.Data == "a" {
-
 		for _, a := range n.Attr {
 			if a.Key != "href" {
 				continue
@@ -125,37 +110,9 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 			}
 			ext := strings.ToLower(path.Ext(link.Path))
 			if GeoFileExtensions[ext] {
-
-				// make new gRPC ClientConnInterface
-				bytes, _ := io.ReadAll(resp.Body)
-				extractRequest = pb.ExtractRequest{
-					Html: string(bytes),
-					Url:  resp.Request.URL.String(),
-				}
-				exClient = pb.NewExtractorClient(pbConn[0])
-				exResp, err := exClient.Extract(ctx, &extractRequest)
-				if err != nil {
-					log.Println("	error while expecting response from Metadata gRPC service")
-				}
-				meta = exResp.JsonResponse
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					goMeta = ExtractMetadata(root, resp.Request.URL.String(), link.String())
-					fmt.Println("	Golang metadata extraction result: ", goMeta)
-				}()
-				wg.Wait()
-				fmt.Println("	Python metadata extraction result: ", meta)
-				betterDescription = CompareEntities("You are a web-scraping expert.", query, meta, goMeta)
-				metadata := betterDescription.(string)
-				//returns 1 or 2
-				if betterDescription == "1" {
-					betterDescription = meta
-				} else {
-					betterDescription = goMeta
-				}
+				goMeta := ExtractMetadata(root, resp.Request.URL.String(), link.String())
 				if parent.Depth+1 < maxDepth {
-					*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: metadata}})
+					*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: goMeta}})
 				}
 			} else if parent.Depth+1 < maxDepth {
 				*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1})
@@ -163,10 +120,9 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 		}
 	}
 
-	// Recurse into children
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && HasUnwantedClassOrID(c) == false {
-			VisitNode(c, links, resp, parent, root, pbConn[0])
+			VisitNode(c, links, resp, parent, root)
 		}
 	}
 }

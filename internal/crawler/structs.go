@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"golang.org/x/net/html"
-	"google.golang.org/grpc"
 )
 
 type WebNode struct {
@@ -21,14 +20,12 @@ type Manager struct {
 	searchQuery         *string
 	downloadURLs        []WebNode
 	CachedURLEmbeddings map[string]DataContext
-	searchFrom          map[string]DataContext
 	linkChan            chan struct{}
 	smTokens            chan struct{}
 	dlTokens            chan struct{}
 	worklist            chan []WebNode
 	done                chan bool
 	seen                map[string]bool
-	conn                *grpc.ClientConn // python metadata service
 	httpClient          *http.Client
 	LlmApiKey           string
 }

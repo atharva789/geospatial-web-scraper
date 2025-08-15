@@ -2,7 +2,6 @@ package crawler
 
 import (
 	"bytes"
-	"context"
 	"encoding/gob"
 	"encoding/json"
 	"flag"
@@ -15,7 +14,6 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"google.golang.org/grpc"
 )
 
 var dataPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/data.gob"
@@ -290,15 +288,6 @@ func Run() {
 		os.Exit(1)
 	}
 
-	// start new gRPC session
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	conn, err := grpc.DialContext(ctx, "localhost:50051", grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		fmt.Println("Error starting metadata gRPC service, exiting")
-	}
-	defer conn.Close()
-
 	envErr := godotenv.Load("../.env")
 	if envErr != nil {
 		fmt.Errorf("Error loading environment variables: %v", envErr)
@@ -310,14 +299,12 @@ func Run() {
 		downloadPath: downloadDir,
 		searchQuery:  searchPtr,
 		downloadURLs: []WebNode{},
-		searchFrom:   PublicGeospatialDataSeeds,
 		linkChan:     make(chan struct{}, 1),
 		smTokens:     make(chan struct{}, 40),
 		dlTokens:     make(chan struct{}, 40),
 		worklist:     make(chan []WebNode),
 		done:         make(chan bool),
 		seen:         make(map[string]bool),
-		conn:         conn,
 		httpClient:   &http.Client{Timeout: 5 * time.Second},
 		LlmApiKey:    LlmApiKey,
 	}
