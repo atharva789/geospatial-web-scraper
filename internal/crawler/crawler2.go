@@ -169,7 +169,7 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 		return nil, fmt.Errorf("parsing %s as HTML: %v", node.Url, err)
 	}
 
-	VisitNode(doc, &m.downloadURLs, resp, node, doc)
+	VisitNode(doc, &m.downloadURLs, resp, node, doc, *m.searchQuery)
 
 	return links, nil
 }

@@ -94,7 +94,7 @@ func Crawl(node *WebNode, downloadDir *string) []WebNode {
 // VisitNode recursively walks the HTML node tree collecting child links. Links
 // to geospatial files are recorded with metadata while regular links are queued
 // for further crawling up to a maximum depth.
-func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node) {
+func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node, searchQuery string) {
 	const maxDepth = 4
 
 	if n.Type == html.ElementNode {
@@ -114,6 +114,14 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 				ext := strings.ToLower(path.Ext(link.Path))
 				if GeoFileExtensions[ext] || ContainsAnySubstring(link.Path, []string{"open", "open-data", "data-access"}) {
 					metadata := ExtractMetadata(root, resp.Request.URL.String(), link.String())
+
+					// check if filename or immediately surrounding metadata about file matches search query
+					queryWords := strings.Split("search query", " ")
+					if ContainsAnySubstring(link.Path, queryWords) {
+						// send to check list?
+						queryString := "query: " + searchQuery + ".\n" + "filename: " + link.Path + "\n" + "metadata: \n" + metadata
+						DataQuery("you are a geospatial data expert.", "is the file what the user is looking for (based on filename, metadata)? answer 'yes' or 'no' only.", queryString, nil)
+					}
 					if parent.Depth+1 < maxDepth {
 						*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: metadata}})
 					}
@@ -128,7 +136,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 				if strings.Contains(a.Val, "data") && strings.Contains(a.Val, "search") {
 					contains = true
 					// normalise search query
-					newLinks = searchCatalog("search-query")
+					newLinks = searchCatalog(searchQuery)
 				}
 			}
 			if contains == false {
@@ -141,7 +149,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 					}
 					if p.Type == html.TextNode && ContainsAnySubstring(p.Data, []string{"data", "search"}) {
 						// do something
-						contains = true
+						searchCatalog(searchQuery)
 					}
 				}
 			}
@@ -158,7 +166,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 	// Recurse into children
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && HasUnwantedClassOrID(c) == false {
-			VisitNode(c, links, resp, parent, root)
+			VisitNode(c, links, resp, parent, root, searchQuery)
 		}
 	}
 }
@@ -293,6 +301,8 @@ type responseStruct struct {
 	Metadata string
 }
 
+// sends a string to search in an <input> form, returns a
+// list: each element is a search result and any text/information about it
 func searchCatalog(query string) []responseStruct {
 	relevantLinks := []responseStruct{}
 	return relevantLinks

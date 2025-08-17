@@ -367,7 +367,10 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 	md.Title = strings.TrimSpace(strings.Join(strings.Fields(titleBuf.String()), " "))
 	md.Description = strings.TrimSpace(strings.Join(strings.Fields(descBuf.String()), " "))
 
-	out, _ := json.Marshal(md)
+	out, err := json.Marshal(md)
+	if err != nil {
+		panic("ExtractMetadata error while coverting data to JSON")
+	}
 	return string(out)
 }
 

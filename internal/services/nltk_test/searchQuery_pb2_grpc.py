@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import extract_pb2 as extract__pb2
+import searchQuery_pb2 as searchQuery__pb2
 
 GRPC_GENERATED_VERSION = '1.74.0'
 GRPC_VERSION = grpc.__version__
@@ -18,17 +18,15 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in extract_pb2_grpc.py depends on'
+        + f' but the generated code in searchQuery_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
-class ExtractorStub(object):
-    """ExctractMetadata service definition
-
-    """
+class NormalizerServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -36,47 +34,43 @@ class ExtractorStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.Extract = channel.unary_unary(
-                '/metadata.Extractor/Extract',
-                request_serializer=extract__pb2.ExtractRequest.SerializeToString,
-                response_deserializer=extract__pb2.ExtractResponse.FromString,
+        self.GetNormalizedQuery = channel.unary_unary(
+                '/normalizer.v1.NormalizerService/GetNormalizedQuery',
+                request_serializer=searchQuery__pb2.QueryRequest.SerializeToString,
+                response_deserializer=searchQuery__pb2.QueryResponse.FromString,
                 _registered_method=True)
 
 
-class ExtractorServicer(object):
-    """ExctractMetadata service definition
+class NormalizerServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
 
-    """
-
-    def Extract(self, request, context):
+    def GetNormalizedQuery(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_ExtractorServicer_to_server(servicer, server):
+def add_NormalizerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'Extract': grpc.unary_unary_rpc_method_handler(
-                    servicer.Extract,
-                    request_deserializer=extract__pb2.ExtractRequest.FromString,
-                    response_serializer=extract__pb2.ExtractResponse.SerializeToString,
+            'GetNormalizedQuery': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetNormalizedQuery,
+                    request_deserializer=searchQuery__pb2.QueryRequest.FromString,
+                    response_serializer=searchQuery__pb2.QueryResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'metadata.Extractor', rpc_method_handlers)
+            'normalizer.v1.NormalizerService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('metadata.Extractor', rpc_method_handlers)
+    server.add_registered_method_handlers('normalizer.v1.NormalizerService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class Extractor(object):
-    """ExctractMetadata service definition
-
-    """
+class NormalizerService(object):
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def Extract(request,
+    def GetNormalizedQuery(request,
             target,
             options=(),
             channel_credentials=None,
@@ -89,9 +83,9 @@ class Extractor(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/metadata.Extractor/Extract',
-            extract__pb2.ExtractRequest.SerializeToString,
-            extract__pb2.ExtractResponse.FromString,
+            '/normalizer.v1.NormalizerService/GetNormalizedQuery',
+            searchQuery__pb2.QueryRequest.SerializeToString,
+            searchQuery__pb2.QueryResponse.FromString,
             options,
             channel_credentials,
             insecure,
