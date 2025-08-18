@@ -1,5 +1,12 @@
 package crawler
 
+import (
+	"net/http"
+
+	"golang.org/x/net/html"
+	"google.golang.org/grpc"
+)
+
 type WebNode struct {
 	Url              string
 	Parent           *WebNode // node is a parent if parentURL == "root"
@@ -21,6 +28,9 @@ type Manager struct {
 	worklist            chan []WebNode
 	done                chan bool
 	seen                map[string]bool
+	conn                *grpc.ClientConn // python metadata service
+	httpClient          *http.Client
+	LlmApiKey           string
 }
 
 // DataContext holds metadata about a public data source.
@@ -31,10 +41,11 @@ type DataContext struct {
 
 // downloadMetadata represents extracted information about a downloadable file.
 type downloadMetadata struct {
-	Title       string   `json:"title,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Keywords    []string `json:"keywords,omitempty"`
-	URL         string   `json:"url"`
+	Title       string            `json:"title,omitempty"`
+	Source      *downloadMetadata `json:"source,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Keywords    []string          `json:"keywords,omitempty"`
+	URL         string            `json:"url"`
 }
 
 type TextPayload struct {
@@ -43,6 +54,50 @@ type TextPayload struct {
 
 type EmbeddingResponse struct {
 	Embeddings [][]float64 `json:"embeddings"`
+}
+
+type LLMQuery struct {
+	Model    string       `json:"model"`
+	Messages []LLMMessage `json:"messages"`
+}
+
+type LLMMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type GroqApiResp struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int64  `json:"created"`
+	Model   string `json:"model"`
+	Choices []struct {
+		Index   int `json:"index"`
+		Message struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage *struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage,omitempty"`
+
+	// When non-200, Groq (OpenAI-compatible) sends an error object:
+	Error *struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+		Param   any    `json:"param"`
+		Code    any    `json:"code"`
+	} `json:"error,omitempty"`
+}
+
+type TableData struct {
+	Root    *html.Node
+	Headers []string
+	Data    []string
 }
 
 //how .gob files will be stored

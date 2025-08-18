@@ -1,0 +1,15 @@
+syntax = "proto3";
+package normalizer.v1;
+option go_package = "/querynormalizer;normalizerpb";
+
+service NormalizerService {
+  rpc GetNormalizedQuery(QueryRequest) returns (QueryResponse) {}
+}
+
+message QueryRequest {
+  string searchQuery = 1;
+}
+
+message QueryResponse {
+  repeated string normalizedQuery = 1;
+}

@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"encoding/json"
 	"flag"
@@ -11,6 +12,11 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
+
+	normalizerpb "geospatial-web-scraper/internal/services/go_backend/internal/crawler/querynormalizer"
+
+	"google.golang.org/grpc"
 )
 
 var dataPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/data.gob"
@@ -285,10 +291,28 @@ func Run() {
 		os.Exit(1)
 	}
 
+	// start new gRPC session
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, "localhost:50051", grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		fmt.Println("Error starting metadata gRPC service, exiting")
+	}
+	defer conn.Close()
+	request := normalizerpb.QueryRequest{SearchQuery: *searchPtr}
+	client := normalizerpb.NewNormalizerServiceClient(conn)
+	normalized_queries, err := client.GetNormalizedQuery(ctx,&request)
+	if err != nil {
+		fmt.Println("Error recieved while normalizing request. %v", err)
+		panic(err)
+	}
+	fmt.Println("normalized_queries: ", normalized_queries)
+	query := normalized_queries.NormalizedQuery[0]
+
 	mg := Manager{
 		secure:       *noSec,
 		downloadPath: downloadDir,
-		searchQuery:  searchPtr,
+		searchQuery:  &query,
 		downloadURLs: []WebNode{},
 		searchFrom:   PublicGeospatialDataSeeds,
 		linkChan:     make(chan struct{}, 1),
@@ -298,6 +322,7 @@ func Run() {
 		done:         make(chan bool),
 		seen:         make(map[string]bool),
 	}
+
 	mg.Init()
 	// Begin search
 	var downloadableLinks []WebNode

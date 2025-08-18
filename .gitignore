@@ -1,3 +1,4 @@
 *.gob
 *.log
 *.exe
+*.env
