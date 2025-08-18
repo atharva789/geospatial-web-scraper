@@ -158,7 +158,8 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 		links = append(links, WebNode{Url: node.Url})
 		<-m.linkChan //replace with mu.UnLock()
 		if *m.downloadPath != "" {
-			go DownloadBuffered(resp, node.Url, m.downloadPath)
+			//	go m.DownloadBuffered(resp, node.Url, m.downloadPath)
+			fmt.Printf("\n Dummy downloading file %v", node.Url)
 		}
 		return nil, nil
 	}

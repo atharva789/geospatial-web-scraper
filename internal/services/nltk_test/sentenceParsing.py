@@ -3,7 +3,6 @@ from nltk.tokenize import RegexpTokenizer
 import re
 #nltk.download('averaged_perceptron_tagger_eng')
 #nltk.download("punkt_tab")
-sentence = "Get precipitation data in Ohio between 2010 - 2020"
 
 
 grammar = """
@@ -12,8 +11,6 @@ grammar = """
     LOCATION: {<NNP>+}
     TIME_RANGE: {<CD><IN|:|CC|,|\$|HYPH|-><CD>} 
 """
-
-
 def get_output_format(tokens):
     """
     Extract common geospatial output formats from token list.
@@ -153,18 +150,23 @@ def construct_string_from_tokens(tokens):
         sentence += tkn + " "
     return sentence
 
+def get_parent_location(loc):
+    #should return a larger area. Ex. parent of city is the state, state is the country
+    return ""
 
-def construct_optimal_query(query):
-    lbl_to_token = clean_user_prompt(query)
-    optimal_query = ""
-    # {data_entity} + {output_format} + "for" {location} (or superset of location)
-    # alternative queries:
-    # 1. Add/Remove time
-    # 2. Look for broader region
-    labels = ["DATA_ENTITY", "OUTPUT_FORMAT", "LOCATION", "TIME_RANGE"]
-    strings = [construct_string_from_tokens(lbl_to_token[label]) for label in labels ]
-    strings.insert(2, "for")
-    strings.insert(4, "between")
-    optimal_query = construct_string_from_tokens(strings)
-    print(f"Optimal query: {optimal_query}")
-    return optimal_query
+class NormalizerService:
+    def GetNormalizedQuery(self, query):
+        lbl_to_token = clean_user_prompt(query)
+        optimal_query = ""
+        # {data_entity} + {output_format} + "for" {location} (or superset of location)
+        # alternative queries:
+        # 1. Add/Remove time
+        # 2. Look for broader region
+        labels = ["DATA_ENTITY", "OUTPUT_FORMAT", "LOCATION", "TIME_RANGE"]
+        strings = [construct_string_from_tokens(lbl_to_token[label]) for label in labels ]
+        strings.insert(2, "for")
+        strings.insert(4, "between")
+        optimal_query = construct_string_from_tokens(strings)
+        print(f"Optimal query: {optimal_query}")
+        return [optimal_query] 
+

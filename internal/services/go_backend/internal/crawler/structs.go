@@ -66,6 +66,34 @@ type LLMMessage struct {
 	Content string `json:"content"`
 }
 
+type GroqApiResp struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int64  `json:"created"`
+	Model   string `json:"model"`
+	Choices []struct {
+		Index   int `json:"index"`
+		Message struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage *struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage,omitempty"`
+
+	// When non-200, Groq (OpenAI-compatible) sends an error object:
+	Error *struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+		Param   any    `json:"param"`
+		Code    any    `json:"code"`
+	} `json:"error,omitempty"`
+}
+
 type TableData struct {
 	Root    *html.Node
 	Headers []string

@@ -1,4 +1,4 @@
-module geospatial-web-scraper
+module geospatial-web-scraper/internal/services/go_backend
 
 go 1.24.3
 

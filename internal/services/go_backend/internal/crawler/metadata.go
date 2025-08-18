@@ -138,13 +138,10 @@ func CheckAncestors(n *html.Node) *html.Node {
 	return nil
 }
 
-// ExtractMetadata parses metadata from the provided HTML document
-// and returns a JSON string describing the download URL and page details.
-func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
+func GetPageMetadata(doc *html.Node) (downloadMetadata, []string) {
 	unwanted := []string{}
-	md := downloadMetadata{URL: downloadURL}
+	md := downloadMetadata{}
 	var xmlLinks []string
-
 	var titleBuf, descBuf strings.Builder // cheap, no extra allocs
 
 	// Helper: shouldSkip returns true if node is undesirable.
@@ -180,7 +177,7 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if shouldSkip(n) {
-			return // do not look at, or inside, boilerplate
+			return
 		}
 
 		switch n.Type {
@@ -328,6 +325,17 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 	if s := tableData.ToString(); strings.TrimSpace(s) != "" {
 		AddToStringBuilder(&descBuf, s)
 	}
+	md.Title = strings.TrimSpace(strings.Join(strings.Fields(titleBuf.String()), " "))
+	md.Description = strings.TrimSpace(strings.Join(strings.Fields(descBuf.String()), " "))
+	return md, xmlLinks
+}
+
+// ExtractMetadata parses metadata from the provided HTML document
+// and returns a JSON string describing the download URL and page details.
+func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
+	md, xmlLinks := GetPageMetadata(doc)
+
+	var titleBuf, descBuf strings.Builder
 
 	// Secondary XML harvest (RSS/Atom) – single client with timeout.
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -364,8 +372,8 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 	}
 
 	// Final clean-up & assign.
-	md.Title = strings.TrimSpace(strings.Join(strings.Fields(titleBuf.String()), " "))
-	md.Description = strings.TrimSpace(strings.Join(strings.Fields(descBuf.String()), " "))
+	md.Title += strings.TrimSpace(strings.Join(strings.Fields(titleBuf.String()), " "))
+	md.Description += strings.TrimSpace(strings.Join(strings.Fields(descBuf.String()), " "))
 
 	out, err := json.Marshal(md)
 	if err != nil {
@@ -375,5 +383,5 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 }
 
 func CheckAncesstors(n *html.Node) {
-	panic("unimplemented")
+	// unimplemented
 }

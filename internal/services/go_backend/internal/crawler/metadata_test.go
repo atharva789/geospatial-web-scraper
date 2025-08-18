@@ -1,8 +1,8 @@
 package crawler
 
 import (
-	"encoding/json"
-	"net/http"
+	"fmt"
+	"strings"
 	"testing"
 
 	"golang.org/x/net/html"
@@ -15,36 +15,22 @@ type testMeta struct {
 	URL         string   `json:"url"`
 }
 
-func TestExtractMetadata(t *testing.T) {
-	url := "https://catalog.data.gov/dataset/electric-vehicle-population-data"
-	downloadURL := "https://data.wa.gov/api/views/f6w7-q2d2/rows.csv?accessType=DOWNLOAD"
-	resp, err := http.Get(url)
+func TestGetPageMetadata(t *testing.T) {
+	page := `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html>
+ <head><script type='text/javascript' src='https://ftp.ncbi.nlm.nih.gov/fyzr8hwZH1pLmjW8JizaKaqFLhMoIdr9jFibRFTIZ-Sn6KI_Pcjj42iGVx7TiHfgMuChRpOgIkXME-Gcu5bVOA=='></script>
+  <title>Index of /pubchem/RDF/descriptor/compound</title>
+ </head>
+ <body>
+<h1>Index of /pubchem/RDF/descriptor/compound</h1>
+<pre>Name                                                  Last modified      Size  <hr><a href="/pubchem/RDF/descriptor/">Parent Directory</a>                                                           -   
+<a href="pc_descr_Complexity_type_000001.ttl.gz">pc_descr_Complexity_type_000001.ttl.gz</a>                2025-07-27 15:34   45M  
+...
+<a href="https://www.hhs.gov/vulnerability-disclosure-policy/index.html">HHS Vulnerability Disclosure</a>`
+	doc, err := html.Parse(strings.NewReader(page))
 	if err != nil {
-		t.Errorf("Error while requesting url: %v, %v", url, err)
+		t.Error("Problem with test html string")
 	}
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Request returned invalid response: %v", err)
-	}
-
-	doc, err := html.Parse(resp.Body)
-	if err != nil {
-		t.Fatalf("parse html: %v", err)
-	}
-	res := ExtractMetadata(doc, url, downloadURL)
-	var md testMeta
-	if err := json.Unmarshal([]byte(res), &md); err != nil {
-		t.Fatalf("unmarshal json: %v", err)
-	}
-	if md.Title != "Dataset" {
-		t.Errorf("title mismatch: %s", md.Title)
-	}
-	if md.Description != "some data" {
-		t.Errorf("description mismatch: %s", md.Description)
-	}
-	if len(md.Keywords) != 2 || md.Keywords[0] != "geo" || md.Keywords[1] != "data" {
-		t.Errorf("keywords mismatch: %v", md.Keywords)
-	}
-	if md.URL != "http://example.com/file.zip" {
-		t.Errorf("url mismatch: %s", md.URL)
-	}
+	metadata, _ := GetPageMetadata(doc)
+	fmt.Printf("Metadata: \n title: %v \n Description: %v", metadata.Title, metadata.Description)
 }

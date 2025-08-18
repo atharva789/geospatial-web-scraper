@@ -1,33 +1,13 @@
 package crawler
 
 import (
-	"io"
-	"net/http"
 	"strings"
 	"testing"
 )
 
-type mockTransport struct {
-	response *http.Response
-	err      error
-}
-
-func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	return m.response, m.err
-}
-
-func newTestClient(respBody string) *http.Client {
-	rt := &mockTransport{response: &http.Response{
-		StatusCode: 200,
-		Body:       io.NopCloser(strings.NewReader(respBody)),
-	}}
-	return &http.Client{Transport: rt}
-}
-
 func TestDataQueryReturnsRawString(t *testing.T) {
 	body := `{"choices":[{"message":{"content":"test response"}}]}`
-	m := Manager{httpClient: newTestClient(body), LlmApiKey: "test"}
-	out, err := m.DataQuery("prompt", "question", "data", nil)
+	out, err := DataQuery("prompt", "question", body, nil)
 	if err != nil {
 		t.Fatalf("DataQuery returned error: %v", err)
 	}
@@ -42,8 +22,7 @@ type sampleStruct struct {
 
 func TestDataQueryWithStructure(t *testing.T) {
 	body := `{"choices":[{"message":{"content":"{\\"msg\\":\\"hello\\"}"}}]}`
-	m := Manager{httpClient: newTestClient(body)}
-	out, err := m.DataQuery("You are parsing html.", "question: what's the text in this html", "data", sampleStruct{})
+	out, err := DataQuery("You are parsing html.", "question: what's the text in this html", body, sampleStruct{})
 	if err != nil {
 		t.Fatalf("DataQuery returned error: %v", err)
 	}
@@ -57,8 +36,7 @@ func TestDataQueryWithStructure(t *testing.T) {
 }
 
 func TestDataQueryNoClient(t *testing.T) {
-	m := Manager{}
-	if _, err := m.DataQuery("p", "q", "d", nil); err == nil {
+	if _, err := DataQuery("p", "q", "d", nil); err == nil {
 		t.Fatalf("expected error when httpClient is nil")
 	}
 }
