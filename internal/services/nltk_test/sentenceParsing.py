@@ -1,6 +1,8 @@
 import nltk
 from nltk.tokenize import RegexpTokenizer
 import re
+import searchQuery_pb2 as pb
+import searchQuery_pb2_grpc as pb_grpc
 #nltk.download('averaged_perceptron_tagger_eng')
 #nltk.download("punkt_tab")
 
@@ -141,7 +143,6 @@ def clean_user_prompt(prompt):
         cleaned_tokens = [token for token,_ in cleaned_tuples]
         lbl_to_tokens[lbl] = cleaned_tokens
     lbl_to_tokens['OUTPUT_FORMAT'] = output_format
-
     return lbl_to_tokens
 
 def construct_string_from_tokens(tokens):
@@ -154,9 +155,26 @@ def get_parent_location(loc):
     #should return a larger area. Ex. parent of city is the state, state is the country
     return ""
 
-class NormalizerService:
-    def GetNormalizedQuery(self, query):
-        lbl_to_token = clean_user_prompt(query)
+def get_methods(object, spacing=20):
+  methodList = []
+  for method_name in dir(object):
+    try:
+        if callable(getattr(object, method_name)):
+            methodList.append(str(method_name))
+    except Exception:
+        methodList.append(str(method_name))
+  processFunc = (lambda s: ' '.join(s.split())) or (lambda s: s)
+  for method in methodList:
+    try:
+        print(str(method.ljust(spacing)) + ' ' +
+              processFunc(str(getattr(object, method).__doc__)[0:90]))
+    except Exception:
+        print(method.ljust(spacing) + ' ' + ' getattr() failed')
+
+class QueryNormalizer(pb_grpc.NormalizerServiceServicer):
+    def GetNormalizedQuery(self, request, context):
+        query = request.searchQuery
+        lbl_to_token = clean_user_prompt(str(query))
         optimal_query = ""
         # {data_entity} + {output_format} + "for" {location} (or superset of location)
         # alternative queries:
@@ -167,6 +185,5 @@ class NormalizerService:
         strings.insert(2, "for")
         strings.insert(4, "between")
         optimal_query = construct_string_from_tokens(strings)
-        print(f"Optimal query: {optimal_query}")
-        return [optimal_query] 
-
+        print(f"        (Python gRPC) Optimal query: {optimal_query}")
+        return pb.QueryResponse(normalizedQuery=[optimal_query])

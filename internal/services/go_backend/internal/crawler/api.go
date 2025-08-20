@@ -326,7 +326,7 @@ func Run() {
 	mg.Init()
 	// Begin search
 	var downloadableLinks []WebNode
-	fmt.Printf("Searching for: \"%s\"\n", *searchPtr)
+	fmt.Printf("Searching for: \"%s\"\n", query)
 
 	if *downloadDir != "" {
 		if _, err := os.Stat(*downloadDir); os.IsNotExist(err) {
