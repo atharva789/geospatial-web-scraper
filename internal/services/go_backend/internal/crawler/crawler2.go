@@ -12,13 +12,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-// FindLinks embeds the search query, compares it against cached seed
-// descriptions and returns the most relevant URLs which are then crawled. The
-// resulting downloadable links are accumulated in m.downloadURLs.
-func (m *Manager) FindLinks() []WebNode {
-	log.Println("------------------------------------------------------------------------------")
-	log.Println("							STARTED NEW CRAWL SESSION")
-	log.Println("------------------------------------------------------------------------------")
+func (m *Manager) GetClosestSeedsFromDB() []WebNode {
 	//finding relevant seeds
 	//1. embed search query
 	var buf bytes.Buffer
@@ -74,13 +68,41 @@ func (m *Manager) FindLinks() []WebNode {
 
 	fmt.Println("Number of relevant URLs: ", len(JobQueue))
 	for _, node := range JobQueue {
-
 		fmt.Println("	closest-match URL: ", node.Url, node.context.Description)
 	}
 
+	return JobQueue
+}
+
+
+// FindLinks embeds the search query, compares it against cached seed
+// descriptions and returns the most relevant URLs which are then crawled. The
+// resulting downloadable links are accumulated in m.downloadURLs.
+func (m *Manager) FindLinks() []WebNode {
+	jobs := []Webnode{}	
+	if len(m.searchQuery.Sources) == 0 && len(m.searchQuery.URLs) == 0 {
+		jobs = append(jobs, GetClosestSeedsFromDB())
+	}(
+	if len(searchQuery.Sources) > 0 {
+		webnodes := ResolveNodesFromSources(searchQuery.Sources)
+		jobs = append(jobs, webnodes)
+	}
+	if len(searchQuery.URLs) > 0 {
+		for _, url := range SearchQuery.URLs {
+			jobs = append(jobs, WebNode{Url: url, Depth: 0})
+		}
+	}
+	return jobs
+
+}	
+
+func (m *Manager) ScheduleCrawl(jobs []WebNode) []WebNode {
+	log.Println("------------------------------------------------------------------------------")
+	log.Println("							STARTED NEW CRAWL SESSION")
+	log.Println("------------------------------------------------------------------------------")
 	//Crawling begins
 	go func() {
-		m.worklist <- JobQueue
+		m.worklist <- m.FindLinks()	
 	}()
 
 	n := 1

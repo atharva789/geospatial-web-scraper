@@ -28,10 +28,7 @@ var findLinksLogPath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/logs/
 func GetBatchedEmbeddings(texts []string) (EmbeddingResponse, error) {
 	var buf bytes.Buffer
 	newPayload := TextPayload{Texts: texts}
-	fmt.Println("Batch-Payload: ")
-	for _, item := range newPayload.Texts {
-		fmt.Println("	", item)
-	}
+	fmt.Println("Batch-Payload, embedding ", len(texts), " URLs.")
 	if err := json.NewEncoder(&buf).Encode(newPayload); err != nil {
 		log.Printf("	Error occured while encoding data JSON payload: %v", err)
 		return EmbeddingResponse{}, err
@@ -336,8 +333,8 @@ func Run() {
 		}
 	}
 
-	downloadableLinks = mg.FindLinks()
-	log.Printf("For searchQuery '%v'", *searchPtr)
+	downloadableLinks = mg.ScheduleCrawl()
+	log.Printf("For searchQuery '%v'", query)
 	log.Printf("	found %v URLs:", len(downloadableLinks))
 
 	for _, node := range downloadableLinks {

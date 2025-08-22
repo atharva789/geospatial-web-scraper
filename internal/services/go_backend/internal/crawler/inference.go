@@ -13,6 +13,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const envFilePath = "/Users/thorbthorb/Downloads/geospatial-web-scraper/internal/services/go_backend/.env"
+
 // Parses a 'DataQuery' into a structured output by passing a valid struct
 func ParseLLMResponse[T any](raw string) (T, error) {
 	var result T
@@ -25,7 +27,9 @@ const model = "llama-3.3-70b-versatile"
 
 func getAPIKey() string {
 	// load enviroment variables
-	godotenv.Load("../../.env")
+	if err := godotenv.Load(envFilePath); err != nil {
+		fmt.Println("Error loading GROQ API key: ", err)
+	}
 	apiKey := os.Getenv("GROQ_API_KEY")
 	apiKey = strings.TrimSpace(apiKey)
 	return apiKey
@@ -90,8 +94,7 @@ func DataQuery(prompt, query, data string, structure any) (any, error) {
 	}
 	
 	if apiResp.Error != nil || resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("LLM Error: status=%d, api_error=%s, raw=%s", resp.StatusCode, apiResp.Error, string(body))
-	}
+		return nil, fmt.Errorf("LLM Error: status=%d, api_error=%s, raw=%s", resp.StatusCode, apiResp.Error, string(body))	}
 	if len(apiResp.Choices) == 0 {
 		return nil, fmt.Errorf("GROQ API Error: no choices returned in response, raw=%s", string(body))
 	}

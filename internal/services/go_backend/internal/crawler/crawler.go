@@ -37,17 +37,21 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 					metadata := ExtractMetadata(root, resp.Request.URL.String(), link.String())
 
 					// check if filename or immediately surrounding metadata about file matches search query
-					queryWords := strings.Split("search query", " ")
+					queryWords := strings.Split(searchQuery, " ")
 					if ContainsAnySubstring(link.Path, queryWords) {
 						// send to check list?
 						queryString := "query: " + searchQuery + ".\n" + "filename: " + link.Path + "\n" + "metadata: \n" + metadata
 						response, llmErr := DataQuery("you are a geospatial data expert.", "is the file what the user is looking for (based on filename, metadata)? answer 'yes' or 'no' only.", queryString, nil)
 						if llmErr != nil {
+							if response.Error.Code != nil {
+								fmt.Println("	GROQ API error code: ", llmErr.Code)
+							}
 							fmt.Println("An error occured: ", llmErr)
 						}
 						if response == "yes" {
 							fmt.Println("Is this the file you're looking for? ", queryString)
 						}
+						fmt.Println("		(LLM response): ", response)
 					}
 					if parent.Depth+1 < maxDepth {
 						*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: metadata}})
