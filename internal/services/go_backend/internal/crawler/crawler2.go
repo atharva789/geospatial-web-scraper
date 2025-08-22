@@ -1,25 +1,26 @@
 package crawler
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"sync"
+        "bytes"
+        "encoding/json"
+        "fmt"
+        "io"
+        "log"
+        "net/http"
+        "sync"
 
-	"golang.org/x/net/html"
+        "golang.org/x/net/html"
 )
 
 func (m *Manager) GetClosestSeedsFromDB() []WebNode {
-	//finding relevant seeds
-	//1. embed search query
-	var buf bytes.Buffer
-	newPayload := TextPayload{Texts: []string{*m.searchQuery}}
-	if err := json.NewEncoder(&buf).Encode(newPayload); err != nil {
-		log.Fatalf("Error occured while encoding search-query JSON payload: %v", err)
-	}
+        // finding relevant seeds
+        // 1. embed search query
+        var buf bytes.Buffer
+        queryText := m.searchQuery.UserQuery.DataEntity
+        newPayload := TextPayload{Texts: []string{queryText}}
+        if err := json.NewEncoder(&buf).Encode(newPayload); err != nil {
+                log.Fatalf("Error occured while encoding search-query JSON payload: %v", err)
+        }
 
 	resp, err := http.Post(
 		"http://localhost:8000/embed",
@@ -79,33 +80,43 @@ func (m *Manager) GetClosestSeedsFromDB() []WebNode {
 // descriptions and returns the most relevant URLs which are then crawled. The
 // resulting downloadable links are accumulated in m.downloadURLs.
 func (m *Manager) FindLinks() []WebNode {
-	jobs := []Webnode{}	
-	if len(m.searchQuery.Sources) == 0 && len(m.searchQuery.URLs) == 0 {
-		jobs = append(jobs, GetClosestSeedsFromDB())
-	}(
-	if len(searchQuery.Sources) > 0 {
-		webnodes := ResolveNodesFromSources(searchQuery.Sources)
-		jobs = append(jobs, webnodes)
-	}
-	if len(searchQuery.URLs) > 0 {
-		for _, url := range SearchQuery.URLs {
-			jobs = append(jobs, WebNode{Url: url, Depth: 0})
-		}
-	}
-	return jobs
+        jobs := []WebNode{}
+        if len(m.searchQuery.Sources) == 0 && len(m.searchQuery.URLs) == 0 {
+                jobs = append(jobs, m.GetClosestSeedsFromDB()...)
+        }
+        if len(m.searchQuery.Sources) > 0 {
+                webnodes := ResolveNodesFromSources(m.searchQuery.Sources)
+                jobs = append(jobs, webnodes...)
+        }
+        if len(m.searchQuery.URLs) > 0 {
+                for _, url := range m.searchQuery.URLs {
+                        jobs = append(jobs, WebNode{Url: url, Depth: 0})
+                }
+        }
+        return jobs
 
-}	
+}
 
-func (m *Manager) ScheduleCrawl(jobs []WebNode) []WebNode {
+// ResolveNodesFromSources converts source identifiers into WebNode entries. This
+// is a temporary stub that simply treats each source string as a URL.
+func ResolveNodesFromSources(sources []string) []WebNode {
+        var nodes []WebNode
+        for _, src := range sources {
+                nodes = append(nodes, WebNode{Url: src, Depth: 0})
+        }
+        return nodes
+}
+
+func (m *Manager) ScheduleCrawl() []WebNode {
 	log.Println("------------------------------------------------------------------------------")
 	log.Println("							STARTED NEW CRAWL SESSION")
 	log.Println("------------------------------------------------------------------------------")
 	//Crawling begins
 	go func() {
-		m.worklist <- m.FindLinks()	
-	}()
+                m.worklist <- m.FindLinks()
+        }()
 
-	n := 1
+        n := 1
 	count := 0
 	maxCrawl := 600
 	for ; n > 0; n-- {
@@ -134,7 +145,7 @@ func (m *Manager) ScheduleCrawl(jobs []WebNode) []WebNode {
 	log.Println("------------------------------------------------------------------------------")
 	log.Printf("					Done! scraped %d URLs ", len(m.downloadURLs))
 	log.Println("------------------------------------------------------------------------------")
-	return m.downloadURLs
+        return m.downloadURLs
 
 }
 
@@ -192,7 +203,7 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 		return nil, fmt.Errorf("parsing %s as HTML: %v", node.Url, err)
 	}
 
-	VisitNode(doc, &m.downloadURLs, resp, node, doc, *m.searchQuery)
+        VisitNode(doc, &m.downloadURLs, resp, node, doc, m.searchQuery.UserQuery.DataEntity)
 
 	return links, nil
 }

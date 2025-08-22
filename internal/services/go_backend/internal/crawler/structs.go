@@ -1,10 +1,10 @@
 package crawler
 
 import (
-	"net/http"
+        "net/http"
 
-	"golang.org/x/net/html"
-	"google.golang.org/grpc"
+        "golang.org/x/net/html"
+        "google.golang.org/grpc"
 )
 
 type WebNode struct {
@@ -15,22 +15,40 @@ type WebNode struct {
 	CosineSimilarity float64
 }
 
+// Query captures the components of a user provided query after it has been
+// normalized by the Python gRPC service.
+type Query struct {
+        DataEntity   string   `json:"data_entity"`
+        Locations    []string `json:"locations"`
+        OutputFormat string   `json:"output_format"`
+        StartDate    string   `json:"start_date"`
+        EndDate      string   `json:"end_date"`
+}
+
+// SearchQuery represents the complete query request coming from the client. It
+// may include direct URLs, data sources and the normalized user query.
+type SearchQuery struct {
+        URLs     []string `json:"urls"`
+        Sources  []string `json:"sources"`
+        UserQuery Query   `json:"user_query"`
+}
+
 type Manager struct {
-	secure              bool
-	downloadPath        *string
-	searchQuery         *string
-	downloadURLs        []WebNode
-	CachedURLEmbeddings map[string]DataContext
-	searchFrom          map[string]DataContext
-	linkChan            chan struct{}
-	smTokens            chan struct{}
-	dlTokens            chan struct{}
-	worklist            chan []WebNode
-	done                chan bool
-	seen                map[string]bool
-	conn                *grpc.ClientConn // python metadata service
-	httpClient          *http.Client
-	LlmApiKey           string
+        secure              bool
+        downloadPath        *string
+        searchQuery         *SearchQuery
+        downloadURLs        []WebNode
+        CachedURLEmbeddings map[string]DataContext
+        searchFrom          map[string]DataContext
+        linkChan            chan struct{}
+        smTokens            chan struct{}
+        dlTokens            chan struct{}
+        worklist            chan []WebNode
+        done                chan bool
+        seen                map[string]bool
+        conn                *grpc.ClientConn // python metadata service
+        httpClient          *http.Client
+        LlmApiKey           string
 }
 
 // DataContext holds metadata about a public data source.

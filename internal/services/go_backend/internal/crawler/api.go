@@ -297,33 +297,37 @@ func Run() {
 	}
 	defer conn.Close()
 	request := normalizerpb.QueryRequest{SearchQuery: *searchPtr}
-	client := normalizerpb.NewNormalizerServiceClient(conn)
-	normalized_queries, err := client.GetNormalizedQuery(ctx,&request)
-	if err != nil {
-		fmt.Println("Error recieved while normalizing request. %v", err)
-		panic(err)
-	}
-	fmt.Println("normalized_queries: ", normalized_queries)
-	query := normalized_queries.NormalizedQuery[0]
+        client := normalizerpb.NewNormalizerServiceClient(conn)
+        normalizedQueries, err := client.GetNormalizedQuery(ctx, &request)
+        if err != nil {
+                fmt.Printf("Error received while normalizing request: %v\n", err)
+                panic(err)
+        }
+        fmt.Println("normalized_queries: ", normalizedQueries)
 
-	mg := Manager{
-		secure:       *noSec,
-		downloadPath: downloadDir,
-		searchQuery:  &query,
-		downloadURLs: []WebNode{},
-		searchFrom:   PublicGeospatialDataSeeds,
-		linkChan:     make(chan struct{}, 1),
-		smTokens:     make(chan struct{}, 40),
-		dlTokens:     make(chan struct{}, 40),
-		worklist:     make(chan []WebNode),
-		done:         make(chan bool),
-		seen:         make(map[string]bool),
-	}
+        var parsedQuery SearchQuery
+        if err := json.Unmarshal([]byte(normalizedQueries.NormalizedQuery[0]), &parsedQuery); err != nil {
+                log.Fatalf("failed to unmarshal normalized query: %v", err)
+        }
 
-	mg.Init()
-	// Begin search
-	var downloadableLinks []WebNode
-	fmt.Printf("Searching for: \"%s\"\n", query)
+        mg := Manager{
+                secure:       *noSec,
+                downloadPath: downloadDir,
+                searchQuery:  &parsedQuery,
+                downloadURLs: []WebNode{},
+                searchFrom:   PublicGeospatialDataSeeds,
+                linkChan:     make(chan struct{}, 1),
+                smTokens:     make(chan struct{}, 40),
+                dlTokens:     make(chan struct{}, 40),
+                worklist:     make(chan []WebNode),
+                done:         make(chan bool),
+                seen:         make(map[string]bool),
+        }
+
+        mg.Init()
+        // Begin search
+        var downloadableLinks []WebNode
+        fmt.Printf("Searching for: \"%s\"\n", parsedQuery.UserQuery.DataEntity)
 
 	if *downloadDir != "" {
 		if _, err := os.Stat(*downloadDir); os.IsNotExist(err) {
@@ -333,8 +337,8 @@ func Run() {
 		}
 	}
 
-	downloadableLinks = mg.ScheduleCrawl()
-	log.Printf("For searchQuery '%v'", query)
+        downloadableLinks = mg.ScheduleCrawl()
+        log.Printf("For searchQuery '%v'", parsedQuery)
 	log.Printf("	found %v URLs:", len(downloadableLinks))
 
 	for _, node := range downloadableLinks {
