@@ -3,6 +3,8 @@ package crawler
 import (
 	"net/http"
 
+	normalizerpb "geospatial-web-scraper/internal/services/go_backend/internal/crawler/querynormalizer"
+
 	"golang.org/x/net/html"
 	"google.golang.org/grpc"
 )
@@ -18,7 +20,7 @@ type WebNode struct {
 type Manager struct {
 	secure              bool
 	downloadPath        *string
-	searchQuery         *string
+	searchQuery         *normalizerpb.QueryStructure
 	downloadURLs        []WebNode
 	CachedURLEmbeddings map[string]DataContext
 	searchFrom          map[string]DataContext
@@ -31,6 +33,13 @@ type Manager struct {
 	conn                *grpc.ClientConn // python metadata service
 	httpClient          *http.Client
 	LlmApiKey           string
+}
+
+type FTPDir struct {
+	Parent         *FTPDir
+	SubDirectories []*FTPDir
+	DownloadFiles  []string //URLs of all downloadable files
+	Metadata       []string
 }
 
 // DataContext holds metadata about a public data source.

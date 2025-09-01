@@ -175,15 +175,10 @@ class QueryNormalizer(pb_grpc.NormalizerServiceServicer):
     def GetNormalizedQuery(self, request, context):
         query = request.searchQuery
         lbl_to_token = clean_user_prompt(str(query))
-        optimal_query = ""
         # {data_entity} + {output_format} + "for" {location} (or superset of location)
         # alternative queries:
         # 1. Add/Remove time
         # 2. Look for broader region
-        labels = ["DATA_ENTITY", "OUTPUT_FORMAT", "LOCATION", "TIME_RANGE"]
-        strings = [construct_string_from_tokens(lbl_to_token[label]) for label in labels ]
-        strings.insert(2, "for")
-        strings.insert(4, "between")
-        optimal_query = construct_string_from_tokens(strings)
+        optimal_query = pb.QueryStructure(dataEntity=lbl_to_token["DATA_ENTITY"][0], outputFromat=lbl_to_token["OUTPUT_FORMAT"][0], location=lbl_to_token["LOCATION"][0], startDate=lbl_to_token["TIME_RANGE"][0], endDate=lbl_to_token["TIME_RANGE"][-1])
         print(f"        (Python gRPC) Optimal query: {optimal_query}")
         return pb.QueryResponse(normalizedQuery=[optimal_query])

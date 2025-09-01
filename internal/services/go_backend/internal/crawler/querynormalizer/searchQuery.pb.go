@@ -65,16 +65,92 @@ func (x *QueryRequest) GetSearchQuery() string {
 	return ""
 }
 
+type QueryStructure struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DataEntity    string                 `protobuf:"bytes,1,opt,name=dataEntity,proto3" json:"dataEntity,omitempty"`
+	OutputFromat  string                 `protobuf:"bytes,2,opt,name=outputFromat,proto3" json:"outputFromat,omitempty"`
+	Location      string                 `protobuf:"bytes,3,opt,name=location,proto3" json:"location,omitempty"`
+	StartDate     string                 `protobuf:"bytes,4,opt,name=startDate,proto3" json:"startDate,omitempty"`
+	EndDate       string                 `protobuf:"bytes,5,opt,name=endDate,proto3" json:"endDate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryStructure) Reset() {
+	*x = QueryStructure{}
+	mi := &file_searchQuery_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryStructure) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryStructure) ProtoMessage() {}
+
+func (x *QueryStructure) ProtoReflect() protoreflect.Message {
+	mi := &file_searchQuery_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryStructure.ProtoReflect.Descriptor instead.
+func (*QueryStructure) Descriptor() ([]byte, []int) {
+	return file_searchQuery_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *QueryStructure) GetDataEntity() string {
+	if x != nil {
+		return x.DataEntity
+	}
+	return ""
+}
+
+func (x *QueryStructure) GetOutputFromat() string {
+	if x != nil {
+		return x.OutputFromat
+	}
+	return ""
+}
+
+func (x *QueryStructure) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+func (x *QueryStructure) GetStartDate() string {
+	if x != nil {
+		return x.StartDate
+	}
+	return ""
+}
+
+func (x *QueryStructure) GetEndDate() string {
+	if x != nil {
+		return x.EndDate
+	}
+	return ""
+}
+
 type QueryResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	NormalizedQuery []string               `protobuf:"bytes,1,rep,name=normalizedQuery,proto3" json:"normalizedQuery,omitempty"`
+	NormalizedQuery []*QueryStructure      `protobuf:"bytes,1,rep,name=normalizedQuery,proto3" json:"normalizedQuery,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *QueryResponse) Reset() {
 	*x = QueryResponse{}
-	mi := &file_searchQuery_proto_msgTypes[1]
+	mi := &file_searchQuery_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -86,7 +162,7 @@ func (x *QueryResponse) String() string {
 func (*QueryResponse) ProtoMessage() {}
 
 func (x *QueryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_searchQuery_proto_msgTypes[1]
+	mi := &file_searchQuery_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -99,10 +175,10 @@ func (x *QueryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryResponse.ProtoReflect.Descriptor instead.
 func (*QueryResponse) Descriptor() ([]byte, []int) {
-	return file_searchQuery_proto_rawDescGZIP(), []int{1}
+	return file_searchQuery_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *QueryResponse) GetNormalizedQuery() []string {
+func (x *QueryResponse) GetNormalizedQuery() []*QueryStructure {
 	if x != nil {
 		return x.NormalizedQuery
 	}
@@ -115,9 +191,17 @@ const file_searchQuery_proto_rawDesc = "" +
 	"\n" +
 	"\x11searchQuery.proto\x12\rnormalizer.v1\"0\n" +
 	"\fQueryRequest\x12 \n" +
-	"\vsearchQuery\x18\x01 \x01(\tR\vsearchQuery\"9\n" +
-	"\rQueryResponse\x12(\n" +
-	"\x0fnormalizedQuery\x18\x01 \x03(\tR\x0fnormalizedQuery2f\n" +
+	"\vsearchQuery\x18\x01 \x01(\tR\vsearchQuery\"\xa8\x01\n" +
+	"\x0eQueryStructure\x12\x1e\n" +
+	"\n" +
+	"dataEntity\x18\x01 \x01(\tR\n" +
+	"dataEntity\x12\"\n" +
+	"\foutputFromat\x18\x02 \x01(\tR\foutputFromat\x12\x1a\n" +
+	"\blocation\x18\x03 \x01(\tR\blocation\x12\x1c\n" +
+	"\tstartDate\x18\x04 \x01(\tR\tstartDate\x12\x18\n" +
+	"\aendDate\x18\x05 \x01(\tR\aendDate\"X\n" +
+	"\rQueryResponse\x12G\n" +
+	"\x0fnormalizedQuery\x18\x01 \x03(\v2\x1d.normalizer.v1.QueryStructureR\x0fnormalizedQuery2f\n" +
 	"\x11NormalizerService\x12Q\n" +
 	"\x12GetNormalizedQuery\x12\x1b.normalizer.v1.QueryRequest\x1a\x1c.normalizer.v1.QueryResponse\"\x00B\x1fZ\x1d/querynormalizer;normalizerpbb\x06proto3"
 
@@ -133,19 +217,21 @@ func file_searchQuery_proto_rawDescGZIP() []byte {
 	return file_searchQuery_proto_rawDescData
 }
 
-var file_searchQuery_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_searchQuery_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_searchQuery_proto_goTypes = []any{
-	(*QueryRequest)(nil),  // 0: normalizer.v1.QueryRequest
-	(*QueryResponse)(nil), // 1: normalizer.v1.QueryResponse
+	(*QueryRequest)(nil),   // 0: normalizer.v1.QueryRequest
+	(*QueryStructure)(nil), // 1: normalizer.v1.QueryStructure
+	(*QueryResponse)(nil),  // 2: normalizer.v1.QueryResponse
 }
 var file_searchQuery_proto_depIdxs = []int32{
-	0, // 0: normalizer.v1.NormalizerService.GetNormalizedQuery:input_type -> normalizer.v1.QueryRequest
-	1, // 1: normalizer.v1.NormalizerService.GetNormalizedQuery:output_type -> normalizer.v1.QueryResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	1, // 0: normalizer.v1.QueryResponse.normalizedQuery:type_name -> normalizer.v1.QueryStructure
+	0, // 1: normalizer.v1.NormalizerService.GetNormalizedQuery:input_type -> normalizer.v1.QueryRequest
+	2, // 2: normalizer.v1.NormalizerService.GetNormalizedQuery:output_type -> normalizer.v1.QueryResponse
+	2, // [2:3] is the sub-list for method output_type
+	1, // [1:2] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_searchQuery_proto_init() }
@@ -159,7 +245,7 @@ func file_searchQuery_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_searchQuery_proto_rawDesc), len(file_searchQuery_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

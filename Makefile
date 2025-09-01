@@ -1,5 +1,5 @@
-PROTO_DIR=internal/proto
-PY_OUT=internal/services/nltk_test
+PROTO_DIR=internal/proto/
+PY_OUT=internal/services/nltk_test/
 GO_OUT=internal/services/go_backend/internal/crawler/
 
 gen:

@@ -10,6 +10,18 @@ message QueryRequest {
   string searchQuery = 1;
 }
 
-message QueryResponse {
-  repeated string normalizedQuery = 1;
+message QueryStructure {
+  string dataEntity = 1;
+  string outputFormat = 2;
+  string location = 3;
+  string startDate = 4;
+  string endDate = 5;
 }
+
+message QueryResponse {
+  repeated QueryStructure normalizedQuery = 1;
+  repeated string sources = 2;
+  repeated string urls = 3;
+
+}
+
