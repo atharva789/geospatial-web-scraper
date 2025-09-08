@@ -7,11 +7,12 @@
 package normalizerpb
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -68,7 +69,7 @@ func (x *QueryRequest) GetSearchQuery() string {
 type QueryStructure struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DataEntity    string                 `protobuf:"bytes,1,opt,name=dataEntity,proto3" json:"dataEntity,omitempty"`
-	OutputFromat  string                 `protobuf:"bytes,2,opt,name=outputFromat,proto3" json:"outputFromat,omitempty"`
+	OutputFormat  string                 `protobuf:"bytes,2,opt,name=outputFormat,proto3" json:"outputFormat,omitempty"`
 	Location      string                 `protobuf:"bytes,3,opt,name=location,proto3" json:"location,omitempty"`
 	StartDate     string                 `protobuf:"bytes,4,opt,name=startDate,proto3" json:"startDate,omitempty"`
 	EndDate       string                 `protobuf:"bytes,5,opt,name=endDate,proto3" json:"endDate,omitempty"`
@@ -113,9 +114,9 @@ func (x *QueryStructure) GetDataEntity() string {
 	return ""
 }
 
-func (x *QueryStructure) GetOutputFromat() string {
+func (x *QueryStructure) GetOutputFormat() string {
 	if x != nil {
-		return x.OutputFromat
+		return x.OutputFormat
 	}
 	return ""
 }
@@ -144,6 +145,8 @@ func (x *QueryStructure) GetEndDate() string {
 type QueryResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	NormalizedQuery []*QueryStructure      `protobuf:"bytes,1,rep,name=normalizedQuery,proto3" json:"normalizedQuery,omitempty"`
+	Sources         []string               `protobuf:"bytes,2,rep,name=sources,proto3" json:"sources,omitempty"`
+	Urls            []string               `protobuf:"bytes,3,rep,name=urls,proto3" json:"urls,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -185,6 +188,20 @@ func (x *QueryResponse) GetNormalizedQuery() []*QueryStructure {
 	return nil
 }
 
+func (x *QueryResponse) GetSources() []string {
+	if x != nil {
+		return x.Sources
+	}
+	return nil
+}
+
+func (x *QueryResponse) GetUrls() []string {
+	if x != nil {
+		return x.Urls
+	}
+	return nil
+}
+
 var File_searchQuery_proto protoreflect.FileDescriptor
 
 const file_searchQuery_proto_rawDesc = "" +
@@ -196,12 +213,14 @@ const file_searchQuery_proto_rawDesc = "" +
 	"\n" +
 	"dataEntity\x18\x01 \x01(\tR\n" +
 	"dataEntity\x12\"\n" +
-	"\foutputFromat\x18\x02 \x01(\tR\foutputFromat\x12\x1a\n" +
+	"\foutputFormat\x18\x02 \x01(\tR\foutputFormat\x12\x1a\n" +
 	"\blocation\x18\x03 \x01(\tR\blocation\x12\x1c\n" +
 	"\tstartDate\x18\x04 \x01(\tR\tstartDate\x12\x18\n" +
-	"\aendDate\x18\x05 \x01(\tR\aendDate\"X\n" +
+	"\aendDate\x18\x05 \x01(\tR\aendDate\"\x86\x01\n" +
 	"\rQueryResponse\x12G\n" +
-	"\x0fnormalizedQuery\x18\x01 \x03(\v2\x1d.normalizer.v1.QueryStructureR\x0fnormalizedQuery2f\n" +
+	"\x0fnormalizedQuery\x18\x01 \x03(\v2\x1d.normalizer.v1.QueryStructureR\x0fnormalizedQuery\x12\x18\n" +
+	"\asources\x18\x02 \x03(\tR\asources\x12\x12\n" +
+	"\x04urls\x18\x03 \x03(\tR\x04urls2f\n" +
 	"\x11NormalizerService\x12Q\n" +
 	"\x12GetNormalizedQuery\x12\x1b.normalizer.v1.QueryRequest\x1a\x1c.normalizer.v1.QueryResponse\"\x00B\x1fZ\x1d/querynormalizer;normalizerpbb\x06proto3"
 

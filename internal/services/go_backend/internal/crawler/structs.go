@@ -1,13 +1,42 @@
 package crawler
 
 import (
+	"fmt"
 	"net/http"
-
-	normalizerpb "geospatial-web-scraper/internal/services/go_backend/internal/crawler/querynormalizer"
 
 	"golang.org/x/net/html"
 	"google.golang.org/grpc"
 )
+
+type SearchResult struct {
+	Items []ResultItem `json:"items"`
+}
+
+// ResultItem holds the data for a single search result.
+type ResultItem struct {
+	Title   string `json:"title"`
+	Link    string `json:"link"`
+	Snippet string `json:"snippet"`
+}
+
+type GoogleAPIErrorResponse struct {
+	Error APIError `json:"error"`
+}
+
+// APIError contains the details of the error.
+type APIError struct {
+	Code    int           `json:"code"`
+	Message string        `json:"message"`
+	Errors  []ErrorDetail `json:"errors"`
+	Status  string        `json:"status"`
+}
+
+// ErrorDetail provides specific information about the error.
+type ErrorDetail struct {
+	Message string `json:"message"`
+	Domain  string `json:"domain"`
+	Reason  string `json:"reason"`
+}
 
 type WebNode struct {
 	Url              string
@@ -20,7 +49,7 @@ type WebNode struct {
 type Manager struct {
 	secure              bool
 	downloadPath        *string
-	searchQuery         *normalizerpb.QueryStructure
+	searchQuery         GRPCNormalizedQuery
 	downloadURLs        []WebNode
 	CachedURLEmbeddings map[string]DataContext
 	searchFrom          map[string]DataContext
@@ -44,6 +73,7 @@ type FTPDir struct {
 
 // DataContext holds metadata about a public data source.
 type DataContext struct {
+	Title       string
 	Description string    // human-readable description of the endpoint
 	Embedding   []float64 // placeholder for a future embedding value
 }
@@ -75,6 +105,13 @@ type LLMMessage struct {
 	Content string `json:"content"`
 }
 
+type GROQAPIError struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
+	Param   string `json:"param"`
+	Code    string `json:"code"`
+}
+
 type GroqApiResp struct {
 	ID      string `json:"id"`
 	Object  string `json:"object"`
@@ -95,12 +132,21 @@ type GroqApiResp struct {
 	} `json:"usage,omitempty"`
 
 	// When non-200, Groq (OpenAI-compatible) sends an error object:
-	Error *struct {
-		Message string `json:"message"`
-		Type    string `json:"type"`
-		Param   any    `json:"param"`
-		Code    any    `json:"code"`
-	} `json:"error,omitempty"`
+	APIError *GROQAPIError `json:"error,omitempty"`
+}
+
+func (g *GROQAPIError) Error() string {
+	return fmt.Sprintf("Message=%v | Type=%v | Param=%v | Code=%v", g.Message, g.Type, g.Param, g.Code)
+}
+
+type GRPCNormalizedQuery struct {
+	CleanedQuery string
+	DataEntity   string   `json:"dataEntity,omitempty"`
+	OutputFormat string   `json:"outputFormat,omitempty"`
+	Location     string   `json:"location,omitempty"`
+	StartDate    string   `json:"startDate,omitempty"`
+	EndDate      string   `json:"endDate,omitempty"`
+	Sources      []string `json:"sources"` // normalized URLs
 }
 
 type TableData struct {

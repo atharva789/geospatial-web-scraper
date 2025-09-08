@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
 	"github.com/joho/godotenv"
 )
 
@@ -51,15 +52,10 @@ func StrucutreOutput(outputStruct any) string {
 // DataQuestion inputs a query (string) and data (string),
 // returns a structured output from LLM specified by the user.
 // Pass 'nil' for structure for making basic queries
-func DataQuery(prompt, query, data string, structure any) (any, error) {
+func DataQuery(prompt, query, data string) (string, error) {
 	var output_format string
 	httpClient := http.Client{Timeout: 5 * time.Second}
-	if structure != nil {
-		output_format = StrucutreOutput(structure)
-		prompt = prompt + fmt.Sprintf("\n Return your response in the specified JSON format ONLY.\n")
-	} else {
-		output_format = ""
-	}
+
 	content := fmt.Sprintf("%v\n%v \n Question: %v \n Context: %v", prompt, output_format, query, data)
 	userMsg := LLMMessage{Role: "user", Content: content}
 	jsonMsg := LLMMessage{Role: "system", Content: "You are a strucured output generator"}
@@ -71,7 +67,7 @@ func DataQuery(prompt, query, data string, structure any) (any, error) {
 	//build request
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("an error occured while making LLM-request: %v", err)
+		return "", fmt.Errorf("an error occured while making LLM-request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	apiKey := getAPIKey()
@@ -83,42 +79,31 @@ func DataQuery(prompt, query, data string, structure any) (any, error) {
 	}
 
 	defer resp.Body.Close()
-	//decode data into struct 'LLMResponse'
+	//decode data into struct 'GroqApiResp'
 
-	body, err := io.ReadAll(resp.Body)	
+	body, err := io.ReadAll(resp.Body)
 	fmt.Printf("Body-type: %v", reflect.TypeOf(body))
-	
+
 	var apiResp GroqApiResp
 	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("	(DataQuery error) Error returned when parsing LLM response into struct. Response body %v, Error: %v", string(body), err)
+		return "", fmt.Errorf("Error while parsing API response into GroqApiResp struct. Error=%v", err)
 	}
-	
-	if apiResp.Error != nil || resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("LLM Error: status=%d, api_error=%s, raw=%s", resp.StatusCode, apiResp.Error, string(body))	}
+
+	if apiResp.APIError != nil || resp.StatusCode != http.StatusOK {
+		return "", apiResp.APIError
+	}
 	if len(apiResp.Choices) == 0 {
-		return nil, fmt.Errorf("GROQ API Error: no choices returned in response, raw=%s", string(body))
+		return "", fmt.Errorf("GROQ API Error: no choices returned in response, raw=%s", string(body))
 	}
 	output := apiResp.Choices[0].Message.Content
-	if structure == nil {
-		return output, nil
-	}
-
-	if reflect.ValueOf(structure).Kind() != reflect.Ptr {
-		return nil, fmt.Errorf("structure must be a pointer to starget type")
-	}
-	// remember structure should be a pointer to a struct which the user wants the data to be
-	if err := json.Unmarshal([]byte(output), structure); err != nil {
-		return "", err
-	}
-
-	return structure, nil
+	return output, nil
 }
 
 // Compares 2 types of entities. The user must prompt: "You are a geospatial expert".
 // then a query (ex. "which raster is about soil properties?")
 func CompareEntities(prompt, query, dataOne, dataTwo string) any {
 	data := fmt.Sprintf("1: %v\n 2:%v", dataOne, dataTwo)
-	out, err := DataQuery(prompt, query, data, nil)
+	out, err := DataQuery(prompt, query, data)
 	if err != nil {
 		fmt.Errorf("	(CompareEntities Error): %v", err)
 	}

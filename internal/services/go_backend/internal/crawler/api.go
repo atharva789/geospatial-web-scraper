@@ -298,7 +298,7 @@ func Run() {
 	defer conn.Close()
 	request := normalizerpb.QueryRequest{SearchQuery: *searchPtr}
 	client := normalizerpb.NewNormalizerServiceClient(conn)
-	normalized_queries, err := client.GetNormalizedQuery(ctx,&request)
+	normalized_queries, err := client.GetNormalizedQuery(ctx, &request)
 	if err != nil {
 		fmt.Println("Error recieved while normalizing request. %v", err)
 		panic(err)
@@ -306,10 +306,25 @@ func Run() {
 	fmt.Println("normalized_queries: ", normalized_queries)
 	query := normalized_queries.NormalizedQuery[0]
 
+	//override: Assume python service returns object of type QueryResponse
+	// type QueryResponse struct {
+	// 	NormalizedQueries []*struct {
+	// 		CleanedQuery string
+	// 		DataEntity   string `json:"dataEntity,omitempty"`
+	// 		OutputFormat string `json:"outputFormat,omitempty"`
+	// 		Location     string `json:"location,omitempty"`
+	// 		StartDate    string `json:"startDate,omitempty"`
+	// 		EndDate      string `json:"endDate,omitempty"`
+	// 	}
+	// 	Sources []string // normalized URLs
+	// }
+
+	normedQuery := GRPCNormalizedQuery{}
+
 	mg := Manager{
 		secure:       *noSec,
 		downloadPath: downloadDir,
-		searchQuery:  &query,
+		searchQuery:  normedQuery,
 		downloadURLs: []WebNode{},
 		searchFrom:   PublicGeospatialDataSeeds,
 		linkChan:     make(chan struct{}, 1),

@@ -41,11 +41,8 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 					if ContainsAnySubstring(link.Path, queryWords) {
 						// send to check list?
 						queryString := "query: " + searchQuery + ".\n" + "filename: " + link.Path + "\n" + "metadata: \n" + metadata
-						response, llmErr := DataQuery("you are a geospatial data expert.", "is the file what the user is looking for (based on filename, metadata)? answer 'yes' or 'no' only.", queryString, nil)
+						response, llmErr := DataQuery("you are a geospatial data expert.", "is the file what the user is looking for (based on filename, metadata)? answer 'yes' or 'no' only.", queryString)
 						if llmErr != nil {
-							if response.Error.Code != nil {
-								fmt.Println("	GROQ API error code: ", llmErr.Code)
-							}
 							fmt.Println("An error occured: ", llmErr)
 						}
 						if response == "yes" {
@@ -96,7 +93,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 
 	// Recurse into children
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type == html.ElementNode && HasUnwantedClassOrID(c) == false {
+		if c.Type == html.ElementNode && !HasUnwantedClassOrID(c) {
 			VisitNode(c, links, resp, parent, root, searchQuery)
 		}
 	}

@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11searchQuery.proto\x12\rnormalizer.v1\"#\n\x0cQueryRequest\x12\x13\n\x0bsearchQuery\x18\x01 \x01(\t\"p\n\x0eQueryStructure\x12\x12\n\ndataEntity\x18\x01 \x01(\t\x12\x14\n\x0coutputFromat\x18\x02 \x01(\t\x12\x10\n\x08location\x18\x03 \x01(\t\x12\x11\n\tstartDate\x18\x04 \x01(\t\x12\x0f\n\x07\x65ndDate\x18\x05 \x01(\t\"G\n\rQueryResponse\x12\x36\n\x0fnormalizedQuery\x18\x01 \x03(\x0b\x32\x1d.normalizer.v1.QueryStructure2f\n\x11NormalizerService\x12Q\n\x12GetNormalizedQuery\x12\x1b.normalizer.v1.QueryRequest\x1a\x1c.normalizer.v1.QueryResponse\"\x00\x42\x1fZ\x1d/querynormalizer;normalizerpbb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11searchQuery.proto\x12\rnormalizer.v1\"#\n\x0cQueryRequest\x12\x13\n\x0bsearchQuery\x18\x01 \x01(\t\"p\n\x0eQueryStructure\x12\x12\n\ndataEntity\x18\x01 \x01(\t\x12\x14\n\x0coutputFormat\x18\x02 \x01(\t\x12\x10\n\x08location\x18\x03 \x01(\t\x12\x11\n\tstartDate\x18\x04 \x01(\t\x12\x0f\n\x07\x65ndDate\x18\x05 \x01(\t\"f\n\rQueryResponse\x12\x36\n\x0fnormalizedQuery\x18\x01 \x03(\x0b\x32\x1d.normalizer.v1.QueryStructure\x12\x0f\n\x07sources\x18\x02 \x03(\t\x12\x0c\n\x04urls\x18\x03 \x03(\t2f\n\x11NormalizerService\x12Q\n\x12GetNormalizedQuery\x12\x1b.normalizer.v1.QueryRequest\x1a\x1c.normalizer.v1.QueryResponse\"\x00\x42\x1fZ\x1d/querynormalizer;normalizerpbb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -37,7 +37,7 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_QUERYSTRUCTURE']._serialized_start=73
   _globals['_QUERYSTRUCTURE']._serialized_end=185
   _globals['_QUERYRESPONSE']._serialized_start=187
-  _globals['_QUERYRESPONSE']._serialized_end=258
-  _globals['_NORMALIZERSERVICE']._serialized_start=260
-  _globals['_NORMALIZERSERVICE']._serialized_end=362
+  _globals['_QUERYRESPONSE']._serialized_end=289
+  _globals['_NORMALIZERSERVICE']._serialized_start=291
+  _globals['_NORMALIZERSERVICE']._serialized_end=393
 # @@protoc_insertion_point(module_scope)
