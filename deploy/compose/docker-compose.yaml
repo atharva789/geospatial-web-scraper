@@ -1,0 +1,44 @@
+services:
+  query_dedup_db:
+    container_name: deduplication_postgres_db
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: thorb
+      POSTGRES_PASSWORD: throb143
+      POSTGRES_DB: dedup_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  go_crawler:
+    build: 
+      dockerfile: ../../internal/services/crawler_service/crawler.Dockerfile
+      context: ../../internal/services/crawler_service/
+    env_file: 
+      - ./.env
+    container_name: go_crawler_container
+    ports:
+      - "8080:8080"
+  
+  query_normalizer_python:
+    build: 
+      dockerfile: ../../internal/services/querynormalizer_service/querynormalizer.Dockerfile
+      context: ../../internal/services/querynormalizer_service/
+    env_file:
+      - ./.env
+    container_name: python_querynormalizer_container
+    ports:
+      - "50051:50051"
+  
+  # querygen_python:
+  #   build:
+  #     dockerfile: ../../internal/services/querygen_service/querygen.Dockerfile
+  #   env_file:
+  #     - ./.env
+  #   container_name: querygen_container
+  #   ports: 
+  #     - "50052:50052"
+
+volumes:
+  pgdata:
