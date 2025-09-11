@@ -1,0 +1,8 @@
+click==8.2.1
+grpcio==1.74.0
+grpcio-tools==1.74.0
+joblib==1.5.1
+protobuf==6.32.0
+regex==2025.7.34
+setuptools==80.9.0
+tqdm==4.67.1
