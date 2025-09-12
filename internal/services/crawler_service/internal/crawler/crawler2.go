@@ -2,8 +2,6 @@ package crawler
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"path"
 	"strings"
@@ -11,9 +9,6 @@ import (
 	"golang.org/x/net/html"
 )
 
-// FindLinks embeds the search query, compares it against cached seed
-// descriptions and returns the most relevant URLs which are then crawled. The
-// resulting downloadable links are accumulated in m.downloadURLs.
 func (m *Manager) FindLinks() ([]WebNode, error) {
 	var jobs []WebNode
 	if len(m.searchQuery.Sources) > 0 {
@@ -32,12 +27,11 @@ func (m *Manager) FindLinks() ([]WebNode, error) {
 }
 
 func (m *Manager) ScheduleCrawl() []WebNode {
-	log.Println("------------------------------------------------------------------------------")
-	log.Println("							STARTED NEW CRAWL SESSION")
-	log.Println("------------------------------------------------------------------------------")
+	WriteToLog(m.kWriter, "STARTED NEW CRAWL SESSION")
 	newJobs, err := m.FindLinks()
 	if err != nil {
-		panic("Error initializing seed jobs")
+		WriteToLog(m.kWriter, "Error initializing seed jobs")
+		panic("")
 	}
 	//Crawling begins
 	go func() {
@@ -70,9 +64,7 @@ func (m *Manager) ScheduleCrawl() []WebNode {
 
 		}
 	}
-	log.Println("------------------------------------------------------------------------------")
-	log.Printf("					Done! scraped %d URLs ", len(m.downloadURLs))
-	log.Println("------------------------------------------------------------------------------")
+	WriteToLog(m.kWriter, fmt.Sprintf("Done! scraped %d URLs ", len(m.downloadURLs)))
 	return m.downloadURLs
 
 }
@@ -93,7 +85,7 @@ func (m *Manager) Crawl2(node *WebNode) []WebNode {
 	links, err := m.Extract2(node)
 	<-m.smTokens
 	if err != nil {
-		log.Printf("Error occured while crawling %v: %v", node.Url, err)
+		WriteToLog(m.kWriter, fmt.Sprintf("Error occured while crawling %v: %v", node.Url, err))
 	}
 
 	return links
@@ -207,7 +199,6 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 		links = append(links, WebNode{Url: node.Url})
 		<-m.linkChan //replace with mu.UnLock()
 		if *m.downloadPath != "" {
-			//	go m.DownloadBuffered(resp, node.Url, m.downloadPath)
 			fmt.Printf("\n Dummy downloading file %v", node.Url)
 		}
 		return links, nil
@@ -222,31 +213,4 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 	VisitNode(doc, &m.downloadURLs, resp, node, doc, "*m.searchQuery", m.kWriter)
 
 	return links, nil
-}
-
-// DownloadBuffered reads the HTTP response body and writes it to disk when
-// running in secure mode. Downloads are serialized using dlTokens.
-func (m *Manager) DownloadBuffered(resp *http.Response, rawURL string) {
-	if m.secure {
-		m.dlTokens <- struct{}{}
-		data, err := io.ReadAll(resp.Body)
-		resp.Body.Close() // safe to close now
-		if err != nil {
-			log.Printf("Failed to buffer body for download: %v", err)
-		}
-		// cmd := exec.Command(
-		// 	"firejail",
-		// 	"--private="+*m.downloadPath,
-		// 	"--net=none",
-		// 	"--caps.drop=all",
-		// 	"--seccomp",
-		// 	"--shell=none",
-		// 	"--quiet",
-		// 	fmt.Sprintf("downloader -u=%s -b=%s -d=%s", rawURL, data, *m.downloadPath),
-		// )
-		// cmd.Run()
-
-		Download(rawURL, data, m.downloadPath)
-		<-m.dlTokens
-	}
 }

@@ -1,6 +1,6 @@
 PROTO_DIR=internal/proto/
-PY_OUT=internal/services/nltk_test/
-GO_OUT=internal/services/go_backend/internal/crawler/
+PY_OUT=internal/services/querynormalizer_service/
+GO_OUT=internal/services/crawler_service/internal/crawler/
 
 gen:
 	python -m grpc_tools.protoc -I $(PROTO_DIR) \

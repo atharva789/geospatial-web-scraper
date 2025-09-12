@@ -10,12 +10,28 @@ message QueryRequest {
   string searchQuery = 1;
 }
 
+/*
 message QueryStructure {
   string dataEntity = 1;
   string outputFormat = 2;
   string location = 3;
   string startDate = 4;
   string endDate = 5;
+}
+*/
+
+message Source {
+  string URL = 1;
+}
+
+message QueryStructure {
+  string dataEntity =1;
+  string outputFormat = 2;
+  string location = 3;
+  string countryCode = 4;
+  string startDate = 5;
+  string endDate = 6;
+  repeated Source sources = 7;
 }
 
 message QueryResponse {

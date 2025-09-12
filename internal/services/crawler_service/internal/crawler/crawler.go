@@ -4,10 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"net/url"
-	"os"
 	"path"
 	"strings"
 	"time"
@@ -70,7 +67,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 					if err != nil {
 						fmt.Println("Failed to write to kafka: %s", err)
 					}
-					log.Printf("Kafka stream successful!")
+					WriteToLog(kw, "Kafka stream successful!")
 
 					// check if filename or immediately surrounding metadata about file matches search query
 					queryWords := strings.Split(searchQuery, " ")
@@ -157,33 +154,6 @@ func ValidateDownloadable(resp *http.Response, url string) bool {
 		return true
 	}
 	return false
-}
-
-// Download writes the provided data to a file in downloadDir using the
-// filename derived from the URL. It is used by the secure downloader helper
-// and tests.
-func Download(rawURL string, data []byte, downloadDir *string) error {
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil {
-		log.Printf("error parsing URL %s: %v", rawURL, err)
-		return err
-	}
-	filename := path.Base(parsedURL.Path)
-	if filename == "" || filename == "." || filename == "/" {
-		filename = "download"
-	}
-	filepath := path.Join(*downloadDir, filename)
-	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Printf("error creating file %s: %v", filepath, err)
-		return err
-	}
-	defer file.Close()
-	if _, err := file.Write(data); err != nil {
-		log.Printf("error writing data to %s: %v", filepath, err)
-		return err
-	}
-	return nil
 }
 
 type responseStruct struct {
