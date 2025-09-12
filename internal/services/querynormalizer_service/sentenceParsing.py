@@ -1,10 +1,12 @@
 # ---- spacy-based rewrite (no NLTK) ----
+from concurrent.futures import ThreadPoolExecutor
+import math
 import re
-import dateparser
+import time
 import spacy
 from spacy.matcher import Matcher
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
+from datetime import datetime, timedelta
+# from dateutil.relativedelta import relativedelta
 
 from geopy.geocoders import Nominatim  # optional (not used below)
 import searchQuery_pb2 as pb
@@ -219,13 +221,10 @@ def clean_user_prompt(prompt: str):
     raw_tokens = [t.text for t in doc]
     output_format = get_output_format(raw_tokens if any(x in raw_tokens for x in ["-", ":"]) else split_hyphens_and_colons(prompt))
 
-    # LOCATION via NER
     locations = extract_locations(doc)
 
-    # DATA_ENTITY via matcher
     data_entities = extract_data_entities(doc)
 
-    # TIME_RANGE via dateparser + matcher
     time_range = extract_time_range(doc)
 
     lbl_to_tokens = {
@@ -236,18 +235,34 @@ def clean_user_prompt(prompt: str):
     }
     return lbl_to_tokens
 
-def get_spatial_entity(addr, loc):
-    return
+def get_spatial_entity(addr: dict, loc: str) -> tuple[str, str, str]:
+    """
+    Returns (canonical_name, level, country_code).
+    Level is one of: city, county, state, country.
+    """
+    # Order matters: most specific first
+    if "city" in addr or "town" in addr or "village" in addr or "hamlet" in addr:
+        return addr.get("city") or addr.get("town") or addr.get("village") or addr.get("hamlet"), "city", addr.get("country_code")
+    if "county" in addr:
+        return addr["county"], "county", addr.get("country_code")
+    if "state" in addr:
+        return addr["state"], "state", addr.get("country_code")
+    if "country" in addr:
+        return addr["country"], "country", addr.get("country_code")
+    # Fallback: return the raw string
+    return loc, "unknown", addr.get("country_code")
 
-# returns true if a is a descendant of B
-def isDescendant(lvl_a:str, lvlb: str) -> bool:
-    # fill this in later
-    return True
-
-def isAncesstor(lvl_a, lvl_b: str) -> bool:
-    return True
 
 spatial_levels = ["city village town", "county", "state", "country"]
+level_index = {lvl: i for i, lvl in enumerate(spatial_levels)}
+
+def isDescendant(lvl_a: str, lvl_b: str) -> bool:
+    """True if lvl_a is more fine-grained than lvl_b (city < county < state < country)."""
+    return level_index.get(lvl_a, 99) < level_index.get(lvl_b, 99)
+
+def isAncestor(lvl_a: str, lvl_b: str) -> bool:
+    return level_index.get(lvl_a, -1) > level_index.get(lvl_b, -1)
+
 
 # ASSUMPTION
 # 1. service will NEVER recieve a query with 2 distinct locations 
@@ -262,39 +277,87 @@ spatial_levels = ["city village town", "county", "state", "country"]
 def get_parent_locations(locations: list[str]) -> list[str]: 
     seen = set() # contains (loc, level) where level is (city/county/state/country)
     # check that current loc is not a parent of previous
-    canonical_entity, canon_lvl = None, None
     geolocator = Nominatim(user_agent="geo_parser")
+    
+    # get name, lvl, code for each loc
+    resolved = []
     for loc in locations:
-        if not seen[loc]:
+        try:
             geo = geolocator.geocode(loc)
-            addr = geo.raw.get("address", {})
-            current_lvl = get_spatial_entity(addr, loc)
-            # check if previous is child/parent of current: move backwards
-            if isDescendant(last_lvl, current_lvl):
-                last_lvl, seen[loc] = current_lvl, current_lvl
+            if not geo:
                 continue
-            canonical_entity, canon_lvl = addr, current_lvl
-    # there should be only one canon-entity
-    query_tuples: list[tuple[str, str]] = 
+            addr = geo.raw.get("address", {})
+            name, lvl, code = get_spatial_entity(addr, loc)
+            resolved.append((name,lvl,code))
+        except Exception as e:
+            print(f"geocode failed for loc: {loc}")
+            continue
+    
+    if not resolved:
+        return []
+    
+    # sort 'resolved' by level
+    resolved.sort(key= lambda x: level_index.get(x[1], 99))
+    # canon-entry is the first
+    canon = resolved[0]
+    canon_name, canon_lvl, canon_ccode = canon
+    out = [(canon_name, canon_ccode)]
+    if canon[1] == 99:
+        return [(canon_name, "")]
+    
+    geo = geolocator.geocode(canon_name)
+    addr = geo.raw.get("addr", {}) if geo else {}
+    
+    idx = level_index.get(canon_lvl, 0)
+    for higher in spatial_levels[idx+1:]:
+        val = addr.get(higher)
+        if val:
+            out.append((val, canon_ccode))
+        if len(out) >= 3:
+            out
+            break
+    
+    return out
+# return value: ("cleveland", "us"), ("Ohio", "us"), ("United States", "us")
 
-    return [loc]
 
-def get_methods(obj, spacing=20):
-    methodList = []
-    for method_name in dir(obj):
-        try:
-            if callable(getattr(obj, method_name)):
-                methodList.append(str(method_name))
-        except Exception:
-            methodList.append(str(method_name))
-    processFunc = (lambda s: ' '.join(s.split())) or (lambda s: s)
-    for method in methodList:
-        try:
-            print(str(method.ljust(spacing)) + ' ' +
-                  processFunc(str(getattr(obj, method).__doc__)[0:90]))
-        except Exception:
-            print(method.ljust(spacing) + ' ' + ' getattr() failed')
+temporal_scale = ['y', 'decade', 'quartercentinel', 'semicentinal']
+temporal_lvls = {ent: i for i, ent in enumerate(temporal_scale)} # where i denotes 'level': ex. 'y' = 0, 'decade' = 1, … , 'semicentinal = 3
 
+def get_temporal_entity(days: int) -> int:
+    if days <= 365:
+        return temporal_lvls['y']
+    elif 365 <= days < 3650:
+        return temporal_lvls['decade']
+    elif 3650 <= days < 365*25:
+        return temporal_lvls['quartercentinel']
+    return temporal_lvls['semicentinal']
+
+
+def get_wider_time_windows(start_date, end_date: str) -> list[(str,str)]:
+    # subtract dates, get month, year, bicentinel threshold. If time_entity ≤ month, return year, 10 year
+    start, end = datetime.strptime(start_date, "%d-%m-%y"), datetime.strptime(end_date, "%d-%m-%y")
+    start_floor, end_ceil = (math.floor(start/10)*10), (math.ceil(end/10)*10)
+    out = [(start, end), (start_floor, end_ceil)]
+    now_year = datetime.now().year
+    while now_year - end_ceil > 0:
+        end_ceil += 10
+        start_floor -= 10
+        out.append(end_ceil, start_floor)
+    out.append((start_floor, now_year))
+    return out
+
+
+def construct_optimal_query(data_entity, output_format, spatial_tuple, temporal_tuple):
+    val = pb.QueryStructure(
+            dataEntity=data_entity,
+            outputFromat=output_format,
+            location=spatial_tuple[0],
+            country_code=spatial_tuple[1],
+            startDate=temporal_tuple[0],
+            endDate=temporal_tuple[-1]
+        )
+    return val
 
 class QueryNormalizer(pb_grpc.NormalizerServiceServicer):
     def GetNormalizedQuery(self, request, context):
@@ -310,13 +373,20 @@ class QueryNormalizer(pb_grpc.NormalizerServiceServicer):
         end_date = ""
         if lbl_to_token.get("TIME_RANGE"):
             start_date, end_date = lbl_to_token["TIME_RANGE"][0], lbl_to_token["TIME_RANGE"][-1]
+        
+        location_tuples = get_parent_locations(first_or_empty("LOCATION"))
+        time_tuples = []
+        if start_date and end_date != "":
+            time_tuples = get_wider_time_windows(start_date, end_date)
+            
+        # for simplicity and compute, let's NOT take cartesian product of time x loc (that's 9 search combos PER query)
+        spatio_temporal_spans = [(location_tuples[i], time_tuples[i]) for i in range(min(len(time_tuples), len(location_tuples)))]
+        data_entity, out_format = first_or_empty("DATA_ENTITY"), first_or_empty("OUTPUT_FORMAT")
 
-        optimal_query = pb.QueryStructure(
-            dataEntity=first_or_empty("DATA_ENTITY"),
-            outputFromat=first_or_empty("OUTPUT_FORMAT"),
-            location=first_or_empty("LOCATION"),
-            startDate=start_date,
-            endDate=end_date
-        )
-        print(f"        (Python gRPC) Optimal query: {optimal_query}")
-        return pb.QueryResponse(normalizedQuery=[optimal_query])
+        normalized_queries = [
+            construct_optimal_query(data_entity, out_format, s, t)
+            for s, t in spatio_temporal_spans
+        ]
+            
+        return pb.QueryResponse(normalizedQuery=normalized_queries)
+
