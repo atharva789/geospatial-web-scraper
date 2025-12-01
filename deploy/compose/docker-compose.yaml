@@ -3,10 +3,12 @@ services:
     container_name: deduplication_postgres_db
     image: postgres:15
     restart: always
+    env_file:
+      - ./.env
     environment:
-      POSTGRES_USER: thorb
-      POSTGRES_PASSWORD: throb143
-      POSTGRES_DB: dedup_db
+      POSTGRES_USER: ${POSTGRES_USER:-thorb}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-throb143}
+      POSTGRES_DB: ${POSTGRES_DB:-dedup_db}
     ports:
       - "5432:5432"
     volumes:
@@ -20,6 +22,11 @@ services:
     container_name: go_crawler_container
     ports:
       - "8080:8080"
+    environment:
+      BROKERS: ${BROKERS:-kafka:9092}
+      TOPIC: ${TOPIC:-dataset-event}
+    depends_on:
+      - kafka
   
   query_normalizer_python:
     build: 
@@ -30,6 +37,116 @@ services:
     container_name: python_querynormalizer_container
     ports:
       - "50051:50051"
+    depends_on:
+      - kafka
+
+  querygen_python:
+    build:
+      context: ../../internal/services/querygen_service/
+      dockerfile: querygen.Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      DATABASE_URL: ${QUERYGEN_DATABASE_URL:-sqlite+aiosqlite:///./querygen.db}
+    container_name: querygen_container
+    ports: 
+      - "50052:50052"
+
+  transformation_consumer:
+    build:
+      context: ../../internal/services/transformation_service/
+      dockerfile: transformation.Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-dataset-event}
+      LLM_API_URL: ${LLM_API_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-llama-3.3-70b-versatile}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_PREFIX: ${S3_PREFIX:-llm-classifications/}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      VECTORDB_HOST: ${VECTORDB_HOST:-}
+      VECTORDB_PORT: ${VECTORDB_PORT:-5432}
+      VECTORDB_NAME: ${VECTORDB_NAME:-}
+      VECTORDB_USER: ${VECTORDB_USER:-}
+      VECTORDB_PASSWORD: ${VECTORDB_PASSWORD:-}
+      VECTORDB_TABLE: ${VECTORDB_TABLE:-dataset_vectors}
+      VECTOR_DIM: ${VECTOR_DIM:-1536}
+      BEDROCK_EMBED_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v1}
+    depends_on:
+      - kafka
+    restart: unless-stopped
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    env_file:
+      - ./.env
+    environment:
+      ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT:-2181}
+      ZOOKEEPER_TICK_TIME: ${ZOOKEEPER_TICK_TIME:-2000}
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      - zookeeper
+    env_file:
+      - ./.env
+    environment:
+      KAFKA_BROKER_ID: ${KAFKA_BROKER_ID:-1}
+      KAFKA_ZOOKEEPER_CONNECT: ${KAFKA_ZOOKEEPER_CONNECT:-zookeeper:2181}
+      KAFKA_ADVERTISED_LISTENERS: ${KAFKA_ADVERTISED_LISTENERS:-PLAINTEXT://kafka:9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: ${KAFKA_LISTENER_SECURITY_PROTOCOL_MAP:-PLAINTEXT:PLAINTEXT}
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR:-1}
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: ${KAFKA_TRANSACTION_STATE_LOG_MIN_ISR:-1}
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR:-1}
+    ports:
+      - "9092:9092"
+
+  rag_backend:
+    build:
+      context: ../../internal/services/rag_service/
+      dockerfile: rag.Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: ${RAG_DATABASE_URL:-}
+      VECTORDB_HOST: ${VECTORDB_HOST:-}
+      VECTORDB_PORT: ${VECTORDB_PORT:-5432}
+      VECTORDB_NAME: ${VECTORDB_NAME:-}
+      VECTORDB_USER: ${VECTORDB_USER:-}
+      VECTORDB_PASSWORD: ${VECTORDB_PASSWORD:-}
+      VECTORDB_TABLE: ${VECTORDB_TABLE:-dataset_vectors}
+      VECTOR_DIM: ${VECTOR_DIM:-1536}
+      BEDROCK_EMBED_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v1}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      RAG_LISTEN_ADDR: ${RAG_LISTEN_ADDR:-:8082}
+    depends_on:
+      - kafka
+    ports:
+      - "8082:8082"
+
+  rag_frontend:
+    build:
+      context: ../../web/rag-ui
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://rag_backend:8082}
+    depends_on:
+      - rag_backend
+    ports:
+      - "3000:3000"
   
   # querygen_python:
   #   build:

@@ -6,7 +6,8 @@ import time
 import spacy
 from spacy.matcher import Matcher
 from datetime import datetime, timedelta
-# from dateutil.relativedelta import relativedelta
+from dateutil.relativedelta import relativedelta
+import dateparser
 
 from geopy.geocoders import Nominatim  # optional (not used below)
 import searchQuery_pb2 as pb
@@ -253,7 +254,7 @@ def get_spatial_entity(addr: dict, loc: str) -> tuple[str, str, str]:
     return loc, "unknown", addr.get("country_code")
 
 
-spatial_levels = ["city village town", "county", "state", "country"]
+spatial_levels = ["city", "county", "state", "country"]
 level_index = {lvl: i for i, lvl in enumerate(spatial_levels)}
 
 def isDescendant(lvl_a: str, lvl_b: str) -> bool:
@@ -306,7 +307,7 @@ def get_parent_locations(locations: list[str]) -> list[str]:
         return [(canon_name, "")]
     
     geo = geolocator.geocode(canon_name)
-    addr = geo.raw.get("addr", {}) if geo else {}
+    addr = geo.raw.get("address", {}) if geo else {}
     
     idx = level_index.get(canon_lvl, 0)
     for higher in spatial_levels[idx+1:]:
@@ -335,25 +336,42 @@ def get_temporal_entity(days: int) -> int:
 
 
 def get_wider_time_windows(start_date, end_date: str) -> list[(str,str)]:
-    # subtract dates, get month, year, bicentinel threshold. If time_entity ≤ month, return year, 10 year
-    start, end = datetime.strptime(start_date, "%d-%m-%y"), datetime.strptime(end_date, "%d-%m-%y")
-    start_floor, end_ceil = (math.floor(start/10)*10), (math.ceil(end/10)*10)
-    out = [(start, end), (start_floor, end_ceil)]
-    now_year = datetime.now().year
-    while now_year - end_ceil > 0:
-        end_ceil += 10
-        start_floor -= 10
-        out.append(end_ceil, start_floor)
-    out.append((start_floor, now_year))
-    return out
+    # Expand a date range to progressively wider decade windows up to the current year.
+    try:
+        start = datetime.fromisoformat(start_date)
+        end = datetime.fromisoformat(end_date)
+    except Exception:
+        return []
+
+    if start > end:
+        start, end = end, start
+
+    windows = [(start, end)]
+    start_decade = (start.year // 10) * 10
+    end_decade = ((end.year + 9) // 10) * 10
+
+    windows.append(
+        (datetime(start_decade, 1, 1), datetime(end_decade, 12, 31))
+    )
+
+    now_year = datetime.utcnow().year
+    cursor_start, cursor_end = start_decade, end_decade
+    while cursor_end < now_year:
+        cursor_start -= 10
+        cursor_end = min(cursor_end + 10, now_year)
+        windows.append(
+            (datetime(cursor_start, 1, 1), datetime(cursor_end, 12, 31))
+        )
+
+    return [(a.strftime("%Y-%m-%d"), b.strftime("%Y-%m-%d")) for a, b in windows]
 
 
 def construct_optimal_query(data_entity, output_format, spatial_tuple, temporal_tuple):
     val = pb.QueryStructure(
             dataEntity=data_entity,
-            outputFromat=output_format,
+            outputFormat=output_format,
             location=spatial_tuple[0],
-            country_code=spatial_tuple[1],
+            countryCode=spatial_tuple[1],
             startDate=temporal_tuple[0],
             endDate=temporal_tuple[-1]
         )
@@ -374,7 +392,7 @@ class QueryNormalizer(pb_grpc.NormalizerServiceServicer):
         if lbl_to_token.get("TIME_RANGE"):
             start_date, end_date = lbl_to_token["TIME_RANGE"][0], lbl_to_token["TIME_RANGE"][-1]
         
-        location_tuples = get_parent_locations(first_or_empty("LOCATION"))
+        location_tuples = get_parent_locations(lbl_to_token.get("LOCATION", []))
         time_tuples = []
         if start_date and end_date != "":
             time_tuples = get_wider_time_windows(start_date, end_date)
@@ -389,4 +407,3 @@ class QueryNormalizer(pb_grpc.NormalizerServiceServicer):
         ]
             
         return pb.QueryResponse(normalizedQuery=normalized_queries)
-

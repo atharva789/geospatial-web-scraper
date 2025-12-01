@@ -6,12 +6,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 
 WORKDIR /app
-# consider referencing independent 'querygenRequirements.txt' file, this has LOT fewer dependencies
-COPY ../requirements.txt . 
+
+COPY requirements.txt . 
 RUN pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements.txt
 
 
-# ---------- Final Stage ----------
+# stage 2
 FROM python:3.11-slim
 
 # Runtime dependencies (no compilers here)
@@ -31,4 +31,4 @@ COPY . .
 # expose fastapi port
 EXPOSE 50052
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "50052"]

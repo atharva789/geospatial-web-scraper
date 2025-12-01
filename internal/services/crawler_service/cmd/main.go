@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"crawler_service/internal/crawler"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -21,6 +25,11 @@ func TestActive(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func Health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 //override: Assume python service returns object of type QueryResponse
@@ -46,13 +55,16 @@ func getAttr(r *http.Request, attrName string) (string, error) {
 
 func StartCrawl(w http.ResponseWriter, r *http.Request) {
 	var normedQuery crawler.GRPCNormalizedQuery
+	var respString string
 	cleanedQuery, err := getAttr(r, "cleandquery")
 	dataEntity, err := getAttr(r, "de")
+	if err != nil {
+		respString = "incomplete request!"
+	}
 	location, err := getAttr(r, "loc")
 	startDate, err := getAttr(r, "start")
 	endDate, err := getAttr(r, "end")
 	countryCode, err := getAttr(r, "cc")
-	var respString string
 	if err != nil {
 		respString = "empty request!"
 	}
@@ -74,12 +86,36 @@ func StartCrawl(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	addr := ":8080"
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test", TestActive)
 	mux.HandleFunc("/crawl", StartCrawl)
-	log.Println("Starting server on :8080")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
-		log.Fatal(err)
+	mux.HandleFunc("/healthz", Health)
+	mux.HandleFunc("/ready", Health)
+
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
 	}
+
+	go func() {
+		log.Printf("Starting crawler server on %s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("crawler server error: %v", err)
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
+	log.Println("Shutting down crawler server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("crawler server shutdown error: %v", err)
+	}
+	log.Println("Crawler server stopped.")
 
 }
