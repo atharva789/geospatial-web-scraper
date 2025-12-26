@@ -52,25 +52,72 @@ class QueryGenerator:
         "role": "system", 
         "content": 
 """
-Generate structured output of EXACTLY the following format:
-type NormalizedQuery struct {
-	CleanedQuery string
-	DataEntity   string   `json:"dataEntity,omitempty"`
-	OutputFormat string   `json:"outputFormat,omitempty"`
-	Location     string   `json:"location,omitempty"`
-	CountryCode  string   `json:"cc, omitempty"`
-	StartDate    string   `json:"startDate,omitempty"`
-	EndDate      string   `json:"endDate,omitempty"`
-	Sources      []string `json:"sources"` // normalized URLs
-}  
-DataEntity is a geospatial entity (precipitation, manuresheds, HUCs, etc. Refer to USGS/EPA/NASA geospatial data entities)
-Sources are links to FTP/AWS S3-like URLs from US Government Agencies in Scientific Research or IBM earth, Google Earth, etc. They MUST be easily scrapable.
-OutputFormat must be a geospatial format: geotiff, JSON, geoJSON, geoDB, shapefile, csv, hdf, zip, etc.
-StartDate, EndDate: %dd-%md-%yyyy. These should be time ranges when such data is likely to be found.
-CleanedQueryString: leave blank.
+You are an API that ONLY returns a single JSON object with one key: "normalizedQueries".
+normalizedQueries is an array of objects with EXACTLY these fields:
+{
+  "CleanedQuery": "",            // always empty string
+  "DataEntity": "",              // geospatial entity (precipitation, manuresheds, HUC8/12 watersheds, NLCD landcover, NHD flowlines, soils, DEM, etc.)
+  "OutputFormat": "",            // geospatial file format: geotiff, geojson, geopackage, shapefile, csv, hdf, netcdf, zip, parquet, etc.
+  "Location": "",                // human readable region (state/country/basin/etc.)
+  "CountryCode": "",             // ISO 2 country code when known, else empty
+  "StartDate": "",               // date string dd-mm-yyyy
+  "EndDate": "",                 // date string dd-mm-yyyy
+  "Sources": []                  // array of scrape-friendly data host URLs (USGS/EPA/NOAA/NASA/USDA/ESA/Google/IBM Earth or similar)
+}
+Rules:
+- Return ONLY that JSON object, nothing else.
+- Every entry must be unique and plausible; vary DataEntity, time range, location, and source to avoid duplicates.
+- Time ranges must be realistic for the dataset (e.g., satellite eras, survey years).
+- Sources must be direct data hosts/endpoints (FTP/HTTPS/S3/OPeNDAP), not marketing pages.
+- OutputFormat must match the type of data (rasters -> geotiff/netcdf; vectors -> shapefile/geojson/geopackage; tabular -> csv/parquet).
+- Prefer USGS/EPA/NOAA/NASA/USDA/ESA/Google/IBM Earth domains; include diverse agencies.
+- Keep CleanedQuery empty.
 """}, {"role": "user","content": "Generate 500 UNQIUE 'NormalizedQuery' JSONs at a time"}],
-      model="llama-3.3-70b-versatile",
-      response_format={"type": "json_object"}
+      model="openai/gpt-oss-20b",
+      response_format={
+        "type": "json_schema",
+        "json_schema": {
+          "name": "normalized_queries_response",
+          "strict": True,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "normalizedQueries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "CleanedQuery": {"type": "string"},
+                    "DataEntity": {"type": "string"},
+                    "OutputFormat": {"type": "string"},
+                    "Location": {"type": "string"},
+                    "CountryCode": {"type": "string"},
+                    "StartDate": {"type": "string"},
+                    "EndDate": {"type": "string"},
+                    "Sources": {
+                      "type": "array",
+                      "items": {"type": "string"}
+                    }
+                  },
+                  "required": [
+                    "CleanedQuery",
+                    "DataEntity",
+                    "OutputFormat",
+                    "Location",
+                    "CountryCode",
+                    "StartDate",
+                    "EndDate",
+                    "Sources"
+                  ],
+                  "additionalProperties": False
+                }
+              }
+            },
+            "required": ["normalizedQueries"],
+            "additionalProperties": False
+          }
+        }
+      }
     )
     
     content = raw_output.choices[0].message.content
