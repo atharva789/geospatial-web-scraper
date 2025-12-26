@@ -1,18 +1,4 @@
 services:
-  query_dedup_db:
-    container_name: deduplication_postgres_db
-    image: postgres:15
-    restart: always
-    env_file:
-      - ./.env
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-thorb}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-throb143}
-      POSTGRES_DB: ${POSTGRES_DB:-dedup_db}
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
   go_crawler:
     build: 
       context: ../../internal/services/crawler_service/
@@ -156,6 +142,3 @@ services:
   #   container_name: querygen_container
   #   ports: 
   #     - "50052:50052"
-
-volumes:
-  pgdata:

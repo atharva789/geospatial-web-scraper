@@ -18,6 +18,21 @@ type OkayResponse struct {
 	Time    string `json:"time"`
 }
 
+type normalizedQueriesRequest struct {
+	NormalizedQueries []normalizedQuery `json:"normalizedQueries"`
+}
+
+type normalizedQuery struct {
+	CleanedQuery string   `json:"CleanedQuery"`
+	DataEntity   string   `json:"DataEntity"`
+	OutputFormat string   `json:"OutputFormat"`
+	Location     string   `json:"Location"`
+	CountryCode  string   `json:"CountryCode"`
+	StartDate    string   `json:"StartDate"`
+	EndDate      string   `json:"EndDate"`
+	Sources      []string `json:"Sources"`
+}
+
 func TestActive(w http.ResponseWriter, r *http.Request) {
 	resp := OkayResponse{
 		Message: "go_crawler endpoint active!",
@@ -54,34 +69,56 @@ func getAttr(r *http.Request, attrName string) (string, error) {
 }
 
 func StartCrawl(w http.ResponseWriter, r *http.Request) {
-	var normedQuery crawler.GRPCNormalizedQuery
-	var respString string
-	cleanedQuery, err := getAttr(r, "cleandquery")
-	dataEntity, err := getAttr(r, "de")
-	if err != nil {
-		respString = "incomplete request!"
-	}
-	location, err := getAttr(r, "loc")
-	startDate, err := getAttr(r, "start")
-	endDate, err := getAttr(r, "end")
-	countryCode, err := getAttr(r, "cc")
-	if err != nil {
-		respString = "empty request!"
-	}
-	respString = "ALL GOOD!"
-	normedQuery.CleanedQuery = cleanedQuery
-	normedQuery.DataEntity = dataEntity
-	normedQuery.Location = location
-	normedQuery.StartDate, normedQuery.EndDate = startDate, endDate
-	normedQuery.CountryCode = countryCode
-	//run crawler, return error if failed to write to S3
 	w.Header().Set("Content-type", "application/json")
 
-	if err := crawler.Run(normedQuery); err != nil {
-		respString = err.Error()
+	var payload normalizedQueriesRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid request payload", http.StatusBadRequest)
+		return
 	}
 
-	json.NewEncoder(w).Encode(respString)
+	if len(payload.NormalizedQueries) == 0 {
+		http.Error(w, "normalizedQueries is required", http.StatusBadRequest)
+		return
+	}
+
+	type crawlResult struct {
+		Query  string `json:"query"`
+		Status string `json:"status"`
+		Error  string `json:"error,omitempty"`
+	}
+	var results []crawlResult
+
+	for _, q := range payload.NormalizedQueries {
+		normedQuery := crawler.GRPCNormalizedQuery{
+			CleanedQuery: q.CleanedQuery,
+			DataEntity:   q.DataEntity,
+			OutputFormat: q.OutputFormat,
+			Location:     q.Location,
+			CountryCode:  q.CountryCode,
+			StartDate:    q.StartDate,
+			EndDate:      q.EndDate,
+			Sources:      q.Sources,
+		}
+
+		if err := crawler.Run(normedQuery); err != nil {
+			results = append(results, crawlResult{
+				Query:  q.CleanedQuery,
+				Status: "error",
+				Error:  err.Error(),
+			})
+			continue
+		}
+		results = append(results, crawlResult{
+			Query:  q.CleanedQuery,
+			Status: "ok",
+		})
+	}
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"count":   len(results),
+		"results": results,
+	})
 
 }
 
