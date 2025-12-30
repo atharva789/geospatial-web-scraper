@@ -1,6 +1,0 @@
-kafka-python==2.2.15
-py4j==0.10.9.7
-pyspark==3.5.1
-requests==2.32.3
-boto3==1.35.31
-psycopg2-binary==2.9.9

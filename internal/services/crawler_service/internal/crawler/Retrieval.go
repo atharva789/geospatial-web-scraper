@@ -68,7 +68,7 @@ import (
 // 					log.Fatalf("Error while computing cosine similarity: %v", err)
 // 				}
 // 				mu.Lock()
-// 				relevantURLs = append(relevantURLs, WebNode{Url: url, Parent: nil, Depth: 0, context: context, CosineSimilarity: score})
+// 				relevantURLs = append(relevantURLs, WebNode{URL: url, Parent: nil, Depth: 0, context: context, CosineSimilarity: score})
 // 				mu.Unlock()
 // 				wg.Done()
 // 			}(ctx, url)
@@ -183,7 +183,7 @@ func GoogleSearch(q *GRPCNormalizedQuery) ([]WebNode, error) {
 
 		// iterate, parse searchResult into node
 		for _, item := range searchResult.Items {
-			nodes = append(nodes, WebNode{Url: item.Link, context: DataContext{Title: item.Title, Description: item.Snippet}, Depth: 0, Parent: nil})
+			nodes = append(nodes, WebNode{URL: item.Link, context: DataContext{Title: item.Title, Description: item.Snippet}, Depth: 0, Parent: nil})
 		}
 	}
 

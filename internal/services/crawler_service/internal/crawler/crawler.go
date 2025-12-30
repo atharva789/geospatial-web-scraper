@@ -1,34 +1,25 @@
 package crawler
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"path"
 	"strings"
-	"time"
 
-	"github.com/segmentio/kafka-go"
 	"golang.org/x/net/html"
 )
-
-//kafka topic: Website{URL: string, metadata: (XML/json)}
-
-type DatasetEvent struct {
-	PartitionID string
-	DatasetURL  string
-	MetaURL     []string
-	PageContent string
-}
 
 // VisitNode recursively walks the HTML node tree collecting child links. Links
 // to geospatial files are recorded with metadata while regular links are queued
 // for further crawling up to a maximum depth.
-func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node, searchQuery string, kw *kafka.Writer) {
+func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node, searchQuery string) {
 	const maxDepth = 4
 
 	if n.Type == html.ElementNode {
+		if DetectFTP(n, resp) {
+			// launch an async job
+			IndexFTP(n, resp)
+			return
+		}
 		switch n.Data {
 		case "a":
 			for _, a := range n.Attr {
@@ -43,45 +34,10 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 					continue // ignore bad URLs
 				}
 				ext := strings.ToLower(path.Ext(link.Path))
-				if GeoFileExtensions[ext] || ContainsAnySubstring(link.Path, []string{"open", "open-data", "data-access"}) {
+				if GeoFileExtensions[ext] || GeoMetaFileExtensions[ext] || ContainsAnySubstring(link.Path, []string{"open", "open-data", "data-access"}) {
 					metadata := ExtractMetadata(root, resp.Request.URL.String(), link.String())
-					md, xmlLinks := GetPageMetadata(root)
-					// stream page URL/html content --> Kafka service
-					de := DatasetEvent{ // make this a batched request in the future
-						PartitionID: "dataset-event",
-						DatasetURL:  link.String(),
-						MetaURL:     xmlLinks,
-						PageContent: md.ToString(),
-					}
-					payload, err := json.Marshal(de)
-					if err != nil {
-						fmt.Println("An error occured: %s", err)
-					}
-
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					err = kw.WriteMessages(ctx, kafka.Message{
-						Key:   []byte(de.PartitionID),
-						Value: payload,
-					})
-					cancel()
-					if err != nil {
-						fmt.Println("Failed to write to kafka: %s", err)
-					}
-					WriteToLog(kw, "Kafka stream successful!")
-
-					// check if filename or immediately surrounding metadata about file matches search query
-					queryWords := strings.Split(searchQuery, " ")
-					if ContainsAnySubstring(link.Path, queryWords) {
-						// send to check list?
-						queryString := "query: " + searchQuery + ".\n" + "filename: " + link.Path + "\n" + "metadata: \n" + metadata
-						response, llmErr := DataQuery("you are a geospatial data expert.", "Matches user-query (filename, metadata)? Answer 'yes'/'no' only.", queryString)
-						if llmErr != nil {
-							fmt.Println("An error occured: ", llmErr)
-						}
-						fmt.Println("		(LLM response): ", response)
-					}
 					if parent.Depth+1 < maxDepth {
-						*links = append(*links, WebNode{Url: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: metadata}})
+						*links = append(*links, WebNode{URL: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: metadata}})
 					}
 				}
 			}
@@ -114,7 +70,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 
 			if parent.Depth+1 < maxDepth {
 				for _, link := range newLinks {
-					*links = append(*links, WebNode{Url: link.URL, Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: link.Metadata}})
+					*links = append(*links, WebNode{URL: link.URL, Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: link.Metadata}})
 				}
 			}
 
@@ -124,7 +80,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 	// Recurse into children
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && !HasUnwantedClassOrID(c) {
-			VisitNode(c, links, resp, parent, root, searchQuery, kw)
+			VisitNode(c, links, resp, parent, root, searchQuery)
 		}
 	}
 }

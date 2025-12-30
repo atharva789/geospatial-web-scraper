@@ -1,144 +1,82 @@
 package crawler
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
-	"time"
-
-	normalizerpb "crawler_service/internal/crawler/querynormalizer"
-
-	"github.com/segmentio/kafka-go"
-	"google.golang.org/grpc"
 )
 
-func getenv(envVar, replacement string) string {
-	key := os.Getenv(envVar)
-	if key == "" {
-		return replacement
-	}
-	return key
-}
-
-// only writing links found with kafka to localhost for now
-func WriteToLog(k *kafka.Writer, msg string) error {
-	// streams to kafka
-	var logEvent struct {
-		Message string
-		Time    string
-	}
-
-	logEvent.Message, logEvent.Time = msg, time.Now().String()
-	payload, err := json.Marshal(logEvent)
-	if err != nil {
-		panic(err)
-	}
-
-	topic := "log.event"
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	err = k.WriteMessages(ctx,
-		kafka.Message{
-			Key:   []byte(topic),
-			Value: payload,
-		},
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// Run executes the CLI application.
-func Run(query GRPCNormalizedQuery) error {
-
-	// Validate search query
+// Run executes a complete crawl session for the given normalized query.
+//
+// The function orchestrates the following workflow:
+//  1. Validates the search query parameters
+//  2. Initializes a CrawlManager with concurrency controls
+//  3. Discovers seed URLs and performs Google Search
+//  4. Recursively crawls discovered pages up to maximum depth
+//  5. Extracts geospatial dataset URLs with metadata
+//  6. Persists discovered datasets to PostgreSQL database
+//
+// Parameters:
+//   - query: A NormalizedQuery containing search terms, location, data type, etc.
+//
+// Returns:
+//   - error: nil on success, or an error describing what went wrong
+//
+// Example usage:
+//
+//	query := NormalizedQuery{
+//	    CleanedQuery: "precipitation California 2020",
+//	    DataEntity:   "precipitation",
+//	    Location:     "California",
+//	    StartDate:    "2020-01-01",
+//	    EndDate:      "2020-12-31",
+//	}
+//	if err := Run(query); err != nil {
+//	    log.Fatalf("Crawl failed: %v", err)
+//	}
+func Run(query NormalizedQuery) error {
+	// Validate that we have sufficient search criteria
 	if strings.TrimSpace(query.CleanedQuery) == "" && query.DataEntity == "" {
-		fmt.Println("ERROR: Search query (-s) is required.")
-		return fmt.Errorf("no search-query provided!")
+		return fmt.Errorf("search query validation failed: either CleanedQuery or DataEntity must be provided")
 	}
 
-	var normedQuery GRPCNormalizedQuery
-
-	if query.DataEntity == "" || query.Location == "" {
-		// start new gRPC session
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		conn, err := grpc.DialContext(ctx, "localhost:50051", grpc.WithInsecure(), grpc.WithBlock())
-		if err != nil {
-			fmt.Println("Error starting metadata gRPC service, exiting")
-		}
-		defer conn.Close()
-		request := normalizerpb.QueryRequest{SearchQuery: query.CleanedQuery}
-		client := normalizerpb.NewNormalizerServiceClient(conn)
-		normalized_queries, err := client.GetNormalizedQuery(ctx, &request)
-		if err != nil {
-			fmt.Println("Error recieved while normalizing request. %s", err)
-			panic(err)
-		}
-		fmt.Println("normalized_queries: ", normalized_queries)
-		query := normalized_queries.NormalizedQuery[0]
-		normedQuery.DataEntity, normedQuery.StartDate, normedQuery.EndDate, normedQuery.CountryCode = query.DataEntity, query.StartDate, query.EndDate, query.CountryCode
-	}
-	normedQuery = query
-
-	//override: Assume python service returns object of type QueryResponse
-	// type QueryResponse struct {
-	// 	NormalizedQueries []*struct {
-	// 		CleanedQuery string
-	// 		DataEntity   string `json:"dataEntity,omitempty"`
-	// 		OutputFormat string `json:"outputFormat,omitempty"`
-	// 		Location     string `json:"location,omitempty"`
-	// 		StartDate    string `json:"startDate,omitempty"`
-	// 		EndDate      string `json:"endDate,omitempty"`
-	// 	}
-	// 	Sources []string // normalized URLs
-	// }
-
-	// gRPC returns 3 NormalizedQuery objects: one with specific location (if specified), the other with the country location
-
-	broker := getenv("BROKERS", "localhost:9092")
-	topic := getenv("TOPIC", "dataset-event")
-
-	// Writer is safe for concurrent use; reuse it for performance
-	w := &kafka.Writer{
-		Addr:                   kafka.TCP(broker),
-		Topic:                  topic,
-		Balancer:               &kafka.Hash{}, // same Key -> same partition
-		BatchTimeout:           10 * time.Millisecond,
-		BatchBytes:             64 << 10, // 64KB
-		AllowAutoTopicCreation: true,     // fine for local dev
-		RequiredAcks:           kafka.RequireAll,
-	}
-	defer func() {
-		if err := w.Close(); err != nil {
-			fmt.Printf("writer close: %v", err)
-		}
-	}()
-
-	mg := Manager{
-		searchQuery:  normedQuery,
-		downloadURLs: []WebNode{},
-		searchFrom:   PublicGeospatialDataSeeds,
+	// Initialize the crawl manager with default configuration
+	manager := CrawlManager{
+		searchQuery:  query,
+		downloadURLs: []CrawlNode{},
+		searchFrom:   PublicGeospatialDataSeeds, // Seed URLs from data.go
 		linkChan:     make(chan struct{}, 1),
-		smTokens:     make(chan struct{}, 40),
-		dlTokens:     make(chan struct{}, 40),
-		worklist:     make(chan []WebNode),
+		smTokens:     make(chan struct{}, 40), // Limit to 40 concurrent crawls
+		dlTokens:     make(chan struct{}, 40), // Limit to 40 concurrent downloads
+		worklist:     make(chan []CrawlNode),
 		done:         make(chan bool),
 		seen:         make(map[string]bool),
 	}
 
-	var downloadableLinks []WebNode
-	fmt.Printf("Searching for: \"%s\"\n", query)
+	fmt.Printf("Starting crawl session for query: \"%s\"\n", query.CleanedQuery)
 
-	downloadableLinks = mg.ScheduleCrawl()
-	WriteToLog(mg.kWriter, fmt.Sprintf("For searchQuery '%v'", query))
-	WriteToLog(mg.kWriter, fmt.Sprintf("	found %v URLs:", len(downloadableLinks)))
+	// Execute the breadth-first crawl
+	discoveredDatasets := manager.ScheduleCrawl()
 
-	for _, node := range downloadableLinks {
-		WriteToLog(mg.kWriter, fmt.Sprint("		URL: ", node.Url))
+	fmt.Printf("Crawl completed for query: \"%s\"\n", query.CleanedQuery)
+	fmt.Printf("  Found %d dataset URLs\n", len(discoveredDatasets))
+
+	// Persist all discovered datasets to the database
+	if err := SaveDatasets(discoveredDatasets, query); err != nil {
+		fmt.Printf("ERROR: Failed to save datasets to database: %v\n", err)
+		return fmt.Errorf("database persistence failed: %w", err)
 	}
+
+	// Log discovered URLs for debugging
+	if len(discoveredDatasets) > 0 {
+		fmt.Println("  Discovered URLs:")
+		for i, node := range discoveredDatasets {
+			fmt.Printf("    [%d] %s\n", i+1, node.URL)
+			if i >= 9 && len(discoveredDatasets) > 10 {
+				fmt.Printf("    ... and %d more\n", len(discoveredDatasets)-10)
+				break
+			}
+		}
+	}
+
 	return nil
 }

@@ -90,7 +90,7 @@ func StartCrawl(w http.ResponseWriter, r *http.Request) {
 	var results []crawlResult
 
 	for _, q := range payload.NormalizedQueries {
-		normedQuery := crawler.GRPCNormalizedQuery{
+		normedQuery := crawler.NormalizedQuery{
 			CleanedQuery: q.CleanedQuery,
 			DataEntity:   q.DataEntity,
 			OutputFormat: q.OutputFormat,
@@ -123,6 +123,13 @@ func StartCrawl(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// Initialize database connection
+	if err := crawler.InitDB(); err != nil {
+		log.Printf("Warning: Failed to initialize database: %v", err)
+		log.Println("Crawler will continue but won't persist datasets")
+	}
+	defer crawler.CloseDB()
+
 	addr := ":8080"
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test", TestActive)
