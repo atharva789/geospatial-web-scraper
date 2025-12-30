@@ -13,21 +13,44 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+
       - name: Go test (rag_service)
         working-directory: internal/services/rag_service
-        run: go test ./...
+        run: go test -v ./...
+
+      - name: Go test (crawler_service)
+        working-directory: internal/services/crawler_service
+        run: go test -v ./...
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Python lint (querygen_service)
+        run: |
+          python -m py_compile internal/services/querygen_service/main.py
+          python -m py_compile internal/services/querygen_service/querygen.py
+          python -m py_compile internal/services/querygen_service/db.py
+
+      - name: Python lint (querynormalizer_service)
+        run: |
+          python -m py_compile internal/services/querynormalizer_service/server.py
+          python -m py_compile internal/services/querynormalizer_service/sentenceParsing.py
+
+      - name: Python test (querygen_service)
+        run: |
+          cd internal/services/querygen_service
+          pip install -r requirements.txt
+          python -m pytest test_querygen.py -v
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
       - name: Install and build UI
         working-directory: web/rag-ui
         run: |
           npm install
           npm run build
-
-      - name: Python lint (syntax check)
-        run: |
-          python -m py_compile internal/services/transformation_service/dataset_consumer.py
-          python -m py_compile internal/services/querygen_service/main.py internal/services/querygen_service/querygen.py
