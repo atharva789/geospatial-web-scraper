@@ -108,13 +108,14 @@ func ensureSchema(ctx context.Context, pool *pgxpool.Pool, table string, dim int
 		CREATE EXTENSION IF NOT EXISTS vector;
 		CREATE TABLE IF NOT EXISTS %s (
 			id BIGSERIAL PRIMARY KEY,
-			dataset_url TEXT,
+			dataset_url TEXT UNIQUE NOT NULL,
 			label TEXT,
 			rationale TEXT,
 			embedding VECTOR(%d),
 			created_at TIMESTAMPTZ DEFAULT now()
 		);
-	`, table, dim)
+		CREATE INDEX IF NOT EXISTS %s_embedding_idx ON %s USING ivfflat (embedding vector_cosine_ops);
+	`, table, dim, table, table)
 	_, err := pool.Exec(ctx, query)
 	return err
 }
@@ -316,6 +317,9 @@ func main() {
 			log.Printf("seed data error: %v", err)
 		}
 	}
+
+	// Start background sync worker to vectorize discovered datasets
+	go startSyncWorker(s.pool, s.table, s.embedClient, s.vectorDim)
 
 	http.HandleFunc("/healthz", s.handleHealth)
 	http.HandleFunc("/search", s.handleSearch)

@@ -1,5 +1,21 @@
 package crawler
 
+// ============================================================================
+// Geospatial Format Detection
+// ============================================================================
+
+// GeoMIMETypes maps MIME types to boolean flags for identifying geospatial
+// file formats via HTTP Content-Type headers.
+//
+// This map is used in ValidateDownloadable() to determine if an HTTP response
+// contains a geospatial dataset that should be indexed.
+//
+// Categories covered:
+//   - Raster formats: GeoTIFF, NetCDF, HDF, GRIB
+//   - Vector formats: Shapefile, GeoJSON, KML, GML
+//   - Point clouds: LAS, LAZ
+//   - Databases: GeoPackage, SpatiaLite
+//   - Web services: WMS, WFS
 var GeoMIMETypes = map[string]bool{
 	"application/csv":                      true,
 	"application/zip":                      true,
@@ -30,11 +46,17 @@ var GeoMIMETypes = map[string]bool{
 	"application/topo+json":                true,
 }
 
-// GeoFileExtensions lists common geospatial dataset file extensions.
+// GeoFileExtensions lists common geospatial dataset file extensions for
+// content-based file type detection.
+//
+// This map is used in VisitNode() when parsing <a href="..."> attributes to
+// identify links that point to downloadable geospatial files.
+//
+// Note: Extensions are stored with the leading dot (e.g., ".tif" not "tif")
+// and should be compared case-insensitively using strings.ToLower().
 var GeoFileExtensions = map[string]bool{
 	".zip":     true,
 	".csv":     true,
-	".json":    true,
 	".geojson": true,
 	".kml":     true,
 	".kmz":     true,
@@ -42,9 +64,26 @@ var GeoFileExtensions = map[string]bool{
 	".tiff":    true,
 	".nc":      true,
 	".grib":    true,
-	".xml":     true,
 }
 
+// GeoMetaFileExtensions lists metadata and sidecar file extensions commonly
+// associated with geospatial datasets.
+//
+// These files often contain dataset descriptions, schemas, or structured metadata
+// (e.g., ISO 19115 XML, schema.org JSON-LD) that can be parsed for richer context.
+var GeoMetaFileExtensions = map[string]bool{
+	".xml":    true,
+	".json":   true,
+	".jsonld": true,
+}
+
+// UnwantedClassOrIDSubstrings defines HTML class and ID name substrings that
+// indicate non-content elements to skip during crawling.
+//
+// This filter improves crawl efficiency by avoiding navigation menus, footers,
+// cookie banners, and other boilerplate elements that don't contain dataset links.
+//
+// Used in: HasUnwantedClassOrID() called from VisitNode()
 var UnwantedClassOrIDSubstrings = map[string]bool{
 	// Navigation, headers, menus
 	"nav":        true,
@@ -92,7 +131,18 @@ var UnwantedClassOrIDSubstrings = map[string]bool{
 	"identifier": true,
 }
 
-// PublicGeospatialDataSeeds maps each seed URL to its DataContext.
+// PublicGeospatialDataSeeds is a curated collection of high-quality starting points
+// for geospatial dataset discovery. Each seed URL is mapped to descriptive metadata.
+//
+// These seeds are used by CrawlManager.FindLinks() as initial crawl targets before
+// supplementing with Google Custom Search results.
+//
+// Organized by:
+//   - National data sources (US federal agencies: USGS, NOAA, NASA, EPA, USDA, Census)
+//   - Global data sources (ESA, UN, World Bank, academic institutions)
+//   - Thematic datasets (climate, hydrology, biodiversity, demographics)
+//
+// Total seeds: 150+ URLs across government, academic, and international portals.
 var PublicGeospatialDataSeeds = map[string]DataContext{
 	// ------------------------------------------------------------------
 	// NATIONAL DATA SOURCES (UNITED STATES)
