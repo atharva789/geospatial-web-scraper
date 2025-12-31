@@ -237,17 +237,18 @@ type downloadMetadata = DatasetMetadata
 
 // GeoFile represents a geospatial file discovered during FTP indexing
 // with its download URL and optional metadata file.
+// DEPRECATED: Use DatasetMetadata instead.
 type GeoFile struct {
 	URL      string // Download URL for the geospatial file
 	Metadata string // Optional URL to metadata/sidecar file
 }
 
 // FTPDirectory represents a hierarchical FTP directory structure with
-// downloadable geospatial files.
+// downloadable geospatial files and their extracted metadata.
 type FTPDirectory struct {
-	Parent         *FTPDirectory   // Parent directory (nil for root)
-	SubDirectories []*FTPDirectory // Child directories
-	DownloadFiles  []GeoFile       // Geospatial files with metadata
+	Parent         *FTPDirectory      // Parent directory (nil for root)
+	SubDirectories []*FTPDirectory    // Child directories
+	Datasets       []DatasetMetadata  // Geospatial datasets with extracted metadata
 }
 
 // FTPDir is a deprecated alias for FTPDirectory.

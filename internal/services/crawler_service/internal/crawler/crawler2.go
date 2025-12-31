@@ -178,7 +178,7 @@ func indexFTPRecursive(n *html.Node, resp *http.Response, parent *FTPDirectory) 
 	currentDir := &FTPDirectory{
 		Parent:         parent,
 		SubDirectories: nil,
-		DownloadFiles:  nil,
+		Datasets:       nil,
 	}
 
 	// Collect all links from the current directory listing
@@ -227,8 +227,8 @@ func indexFTPRecursive(n *html.Node, resp *http.Response, parent *FTPDirectory) 
 	}
 	parseAnchors(n)
 
-	// Match geo files with their metadata files
-	currentDir.DownloadFiles = matchGeoFilesWithMetadata(geoFiles, metaFiles)
+	// Match geo files with their metadata files and parse metadata
+	currentDir.Datasets = matchAndParseMetadata(geoFiles, metaFiles)
 
 	// Recursively process subdirectories
 	for _, subDirURL := range subDirURLs {
@@ -245,7 +245,7 @@ func indexFTPRecursive(n *html.Node, resp *http.Response, parent *FTPDirectory) 
 		}
 
 		// Only add subdirectory if it contains files or has subdirectories with files
-		if len(childDir.DownloadFiles) > 0 || len(childDir.SubDirectories) > 0 {
+		if len(childDir.Datasets) > 0 || len(childDir.SubDirectories) > 0 {
 			currentDir.SubDirectories = append(currentDir.SubDirectories, childDir)
 		}
 	}
@@ -253,8 +253,59 @@ func indexFTPRecursive(n *html.Node, resp *http.Response, parent *FTPDirectory) 
 	return currentDir, nil
 }
 
-// matchGeoFilesWithMetadata pairs geo files with their corresponding metadata files.
+// matchAndParseMetadata pairs geo files with their corresponding metadata files,
+// fetches the metadata files, and parses them into DatasetMetadata objects.
 // It matches based on filename similarity (same base name with different extension).
+func matchAndParseMetadata(geoFiles, metaFiles []string) []DatasetMetadata {
+	var result []DatasetMetadata
+
+	// Build a map of base names to metadata URLs
+	metaByBase := make(map[string]string)
+	for _, metaURL := range metaFiles {
+		base := strings.TrimSuffix(path.Base(metaURL), path.Ext(metaURL))
+		metaByBase[base] = metaURL
+	}
+
+	for _, geoURL := range geoFiles {
+		// Create base DatasetMetadata with the download URL
+		dataset := DatasetMetadata{
+			URL: geoURL,
+		}
+
+		// Try to find matching metadata by base name
+		base := strings.TrimSuffix(path.Base(geoURL), path.Ext(geoURL))
+		if metaURL, ok := metaByBase[base]; ok {
+			// Fetch and parse the metadata file
+			parsedMeta := ParseMetadataFile(metaURL)
+
+			// Merge parsed metadata with the dataset
+			if parsedMeta.Title != "" {
+				dataset.Title = parsedMeta.Title
+			}
+			if parsedMeta.Description != "" {
+				dataset.Description = parsedMeta.Description
+			}
+			if parsedMeta.Source != "" {
+				dataset.Source = parsedMeta.Source
+			}
+			if len(parsedMeta.Keywords) > 0 {
+				dataset.Keywords = parsedMeta.Keywords
+			}
+			dataset.Bounds = parsedMeta.Bounds
+			dataset.HorizontalMeta = parsedMeta.HorizontalMeta
+			dataset.VerticalMeta = parsedMeta.VerticalMeta
+			dataset.StartDate = parsedMeta.StartDate
+			dataset.EndDate = parsedMeta.EndDate
+		}
+
+		result = append(result, dataset)
+	}
+
+	return result
+}
+
+// matchGeoFilesWithMetadata is DEPRECATED. Use matchAndParseMetadata instead.
+// This function is kept for backwards compatibility.
 func matchGeoFilesWithMetadata(geoFiles, metaFiles []string) []GeoFile {
 	var result []GeoFile
 
@@ -282,7 +333,7 @@ func matchGeoFilesWithMetadata(geoFiles, metaFiles []string) []GeoFile {
 
 // IndexS3 indexes an S3 bucket path and returns a hierarchical FTPDirectory tree.
 // It uses the S3 ListObjectsV2 API to enumerate objects and builds a tree structure
-// that mirrors the S3 prefix hierarchy. Each GeoFile has URL and optional Metadata.
+// that mirrors the S3 prefix hierarchy. Each dataset has its metadata fetched and parsed.
 //
 // The s3URL should be in the format:
 //   - https://bucket-name.s3.amazonaws.com/prefix/path/
@@ -324,7 +375,7 @@ func indexS3Recursive(bucketURL, prefix string, parent *FTPDirectory) (*FTPDirec
 	currentDir := &FTPDirectory{
 		Parent:         parent,
 		SubDirectories: nil,
-		DownloadFiles:  nil,
+		Datasets:       nil,
 	}
 
 	var geoFiles []string
@@ -386,8 +437,8 @@ func indexS3Recursive(bucketURL, prefix string, parent *FTPDirectory) (*FTPDirec
 		continuationToken = result.NextContinuationToken
 	}
 
-	// Match geo files with metadata
-	currentDir.DownloadFiles = matchGeoFilesWithMetadata(geoFiles, metaFiles)
+	// Match geo files with metadata and parse metadata
+	currentDir.Datasets = matchAndParseMetadata(geoFiles, metaFiles)
 
 	// Recursively process subdirectories
 	for _, subPrefix := range subPrefixes {
@@ -398,7 +449,7 @@ func indexS3Recursive(bucketURL, prefix string, parent *FTPDirectory) (*FTPDirec
 		}
 
 		// Only add if it contains files or has subdirectories with files
-		if len(childDir.DownloadFiles) > 0 || len(childDir.SubDirectories) > 0 {
+		if len(childDir.Datasets) > 0 || len(childDir.SubDirectories) > 0 {
 			currentDir.SubDirectories = append(currentDir.SubDirectories, childDir)
 		}
 	}
