@@ -161,10 +161,9 @@ func TestCrawlNodeStructure(t *testing.T) {
 	}
 
 	child := &CrawlNode{
-		URL:              "https://example.com/root/child",
-		Parent:           parent,
-		Depth:            1,
-		CosineSimilarity: 0.85,
+		URL:    "https://example.com/root/child",
+		Parent: parent,
+		Depth:  1,
 	}
 
 	if child.Parent.URL != "https://example.com/root" {
@@ -172,9 +171,6 @@ func TestCrawlNodeStructure(t *testing.T) {
 	}
 	if child.Depth != 1 {
 		t.Errorf("Child depth = %v, want 1", child.Depth)
-	}
-	if child.CosineSimilarity != 0.85 {
-		t.Errorf("CosineSimilarity = %v, want 0.85", child.CosineSimilarity)
 	}
 }
 

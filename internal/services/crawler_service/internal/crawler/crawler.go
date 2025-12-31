@@ -11,7 +11,7 @@ import (
 // VisitNode recursively walks the HTML node tree collecting child links. Links
 // to geospatial files are recorded with metadata while regular links are queued
 // for further crawling up to a maximum depth.
-func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node, searchQuery string) {
+func (m *Manager) VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node, searchQuery string) {
 	const maxDepth = 4
 	checkedPageType := false
 	if n.Type == html.ElementNode {
@@ -35,9 +35,21 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 				}
 				ext := strings.ToLower(path.Ext(link.Path))
 				if GeoFileExtensions[ext] || GeoMetaFileExtensions[ext] || ContainsAnySubstring(link.Path, []string{"open", "open-data", "data-access"}) {
+					// Extract comprehensive metadata
 					metadata := ExtractMetadata(root, resp.Request.URL.String(), link.String())
+
+					// Add to batch buffer
+					m.dbBatch[m.dbBatchCount] = metadata
+					m.dbBatchCount++
+
+					// Flush to database when batch is full
+					if m.dbBatchCount >= 50 {
+						m.flushDatasetBatch()
+					}
+
+					// Add to crawl worklist if within depth limit
 					if parent.Depth+1 < maxDepth {
-						*links = append(*links, WebNode{URL: link.String(), Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: metadata}})
+						*links = append(*links, WebNode{URL: link.String(), Parent: parent, Depth: parent.Depth + 1})
 					}
 				}
 			}
@@ -70,7 +82,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 
 			if parent.Depth+1 < maxDepth {
 				for _, link := range newLinks {
-					*links = append(*links, WebNode{URL: link.URL, Parent: parent, Depth: parent.Depth + 1, context: DataContext{Description: link.Metadata}})
+					*links = append(*links, WebNode{URL: link.URL, Parent: parent, Depth: parent.Depth + 1})
 				}
 			}
 
@@ -80,7 +92,7 @@ func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebN
 	// Recurse into children
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && !HasUnwantedClassOrID(c) {
-			VisitNode(c, links, resp, parent, root, searchQuery)
+			m.VisitNode(c, links, resp, parent, root, searchQuery)
 		}
 	}
 }

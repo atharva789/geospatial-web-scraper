@@ -100,23 +100,13 @@ func TestExtractMetadata(t *testing.T) {
 				t.Fatalf("Failed to parse HTML: %v", err)
 			}
 
-			// Call ExtractMetadata
-			jsonResult := ExtractMetadata(doc, tt.pageURL, tt.downloadURL)
+			// Call ExtractMetadata - now returns DatasetMetadata directly
+			metadata := ExtractMetadata(doc, tt.pageURL, tt.downloadURL)
 
-			// Verify it returns non-empty JSON
-			if jsonResult == "" {
-				t.Fatal("ExtractMetadata returned empty string")
+			// Verify URL was set
+			if metadata.URL != tt.downloadURL {
+				t.Errorf("URL = %v, want %v", metadata.URL, tt.downloadURL)
 			}
-
-			// Verify it's valid JSON
-			var metadata DatasetMetadata
-			err = json.Unmarshal([]byte(jsonResult), &metadata)
-			if err != nil {
-				t.Fatalf("ExtractMetadata returned invalid JSON: %v\nJSON: %s", err, jsonResult)
-			}
-
-			// Note: ExtractMetadata does not currently set the URL field
-			// It only extracts Title and Description from HTML
 
 			// Verify title if expected
 			if tt.wantTitle != "" && !strings.Contains(metadata.Title, tt.wantTitle) {
@@ -149,26 +139,22 @@ func TestExtractMetadata_JSONStructure(t *testing.T) {
 		t.Fatalf("Failed to parse HTML: %v", err)
 	}
 
-	jsonResult := ExtractMetadata(doc, "https://example.com", "https://example.com/data.tif")
+	metadata := ExtractMetadata(doc, "https://example.com", "https://example.com/data.tif")
 
-	// Unmarshal to verify JSON structure
-	var metadata DatasetMetadata
-	if err := json.Unmarshal([]byte(jsonResult), &metadata); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	// Verify metadata object has expected URL
+	if metadata.URL != "https://example.com/data.tif" {
+		t.Errorf("URL = %v, want https://example.com/data.tif", metadata.URL)
 	}
 
-	// Verify JSON can be marshaled back
-	remarshaled, err := json.Marshal(metadata)
+	// Verify JSON can be marshaled
+	marshaled, err := json.Marshal(metadata)
 	if err != nil {
-		t.Fatalf("Failed to re-marshal metadata: %v", err)
+		t.Fatalf("Failed to marshal metadata: %v", err)
 	}
 
-	// Both should be valid JSON
-	if !json.Valid([]byte(jsonResult)) {
-		t.Error("Original JSON is not valid")
-	}
-	if !json.Valid(remarshaled) {
-		t.Error("Re-marshaled JSON is not valid")
+	// Should be valid JSON
+	if !json.Valid(marshaled) {
+		t.Error("Marshaled JSON is not valid")
 	}
 }
 
@@ -181,18 +167,19 @@ func TestExtractMetadata_EmptyHTML(t *testing.T) {
 		t.Fatalf("Failed to parse HTML: %v", err)
 	}
 
-	jsonResult := ExtractMetadata(doc, "https://example.com", "https://example.com/file.tif")
-
-	// Should still return valid JSON
-	var metadata DatasetMetadata
-	if err := json.Unmarshal([]byte(jsonResult), &metadata); err != nil {
-		t.Fatalf("Failed to unmarshal JSON from empty HTML: %v", err)
-	}
+	metadata := ExtractMetadata(doc, "https://example.com", "https://example.com/file.tif")
 
 	// With empty HTML, title and description should be empty
-	// Function should still return valid JSON
-	if jsonResult == "" {
-		t.Error("Expected non-empty JSON string")
+	if metadata.Title != "" {
+		t.Errorf("Expected empty title, got %v", metadata.Title)
+	}
+	if metadata.Description != "" {
+		t.Errorf("Expected empty description, got %v", metadata.Description)
+	}
+
+	// But URL should still be set
+	if metadata.URL != "https://example.com/file.tif" {
+		t.Errorf("URL = %v, want https://example.com/file.tif", metadata.URL)
 	}
 }
 
@@ -211,17 +198,17 @@ func TestExtractMetadata_WithKeywords(t *testing.T) {
 		t.Fatalf("Failed to parse HTML: %v", err)
 	}
 
-	jsonResult := ExtractMetadata(doc, "https://example.com", "https://example.com/data.nc")
+	metadata := ExtractMetadata(doc, "https://example.com", "https://example.com/data.nc")
 
-	var metadata DatasetMetadata
-	if err := json.Unmarshal([]byte(jsonResult), &metadata); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	// Verify metadata object was returned
+	if metadata.URL != "https://example.com/data.nc" {
+		t.Errorf("URL = %v, want https://example.com/data.nc", metadata.URL)
 	}
 
-	// Verify JSON is valid and can be unmarshaled
 	// Keywords extraction depends on implementation
-	if jsonResult == "" {
-		t.Error("Expected non-empty JSON string")
+	// Just verify we can marshal to JSON
+	if _, err := json.Marshal(metadata); err != nil {
+		t.Errorf("Failed to marshal metadata: %v", err)
 	}
 }
 

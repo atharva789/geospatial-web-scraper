@@ -111,6 +111,7 @@ func (m *Manager) Crawl2(node *WebNode) []WebNode {
 	<-m.smTokens
 	if err != nil {
 		fmt.Printf("Error occured while crawling %v: %v\n", node.URL, err)
+		return []WebNode{} // Return empty slice on error to prevent blocking
 	}
 
 	return links
@@ -468,8 +469,13 @@ func (m *Manager) Extract2(node *WebNode) ([]WebNode, error) {
 		return nil, err
 	}
 
-	VisitNode(doc, &m.downloadURLs, resp, node, doc, "*m.searchQuery")
+	// Pass local links slice to VisitNode to collect follow-on crawl jobs
+	m.VisitNode(doc, &links, resp, node, doc, "*m.searchQuery")
 
+	// Also add discovered links to downloadURLs for tracking
+	m.downloadURLs = append(m.downloadURLs, links...)
+
+	// Return links for worklist (prevents channel blocking even if empty)
 	return links, nil
 }
 

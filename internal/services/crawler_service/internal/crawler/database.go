@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -73,6 +74,33 @@ func createTables() error {
 	CREATE INDEX IF NOT EXISTS idx_discovered_datasets_data_entity ON discovered_datasets(data_entity);
 	CREATE INDEX IF NOT EXISTS idx_discovered_datasets_location ON discovered_datasets(location);
 	CREATE INDEX IF NOT EXISTS idx_discovered_datasets_discovered_at ON discovered_datasets(discovered_at);
+
+	CREATE TABLE IF NOT EXISTS datasets (
+		id SERIAL PRIMARY KEY,
+		title TEXT NOT NULL,
+		source TEXT,
+		description TEXT,
+		keywords TEXT[],
+		url TEXT UNIQUE NOT NULL,
+		west_bc DOUBLE PRECISION,
+		east_bc DOUBLE PRECISION,
+		north_bc DOUBLE PRECISION,
+		south_bc DOUBLE PRECISION,
+		lat_res DOUBLE PRECISION,
+		long_res DOUBLE PRECISION,
+		geo_unit TEXT,
+		horizontal_crs TEXT,
+		vertical_crs TEXT,
+		alt_res DOUBLE PRECISION,
+		alt_units TEXT,
+		start_date TEXT,
+		end_date TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_datasets_url ON datasets(url);
+	CREATE INDEX IF NOT EXISTS idx_datasets_source ON datasets(source);
+	CREATE INDEX IF NOT EXISTS idx_datasets_created_at ON datasets(created_at);
 	`
 
 	_, err := db.Exec(schema)
@@ -110,8 +138,8 @@ func SaveDatasets(nodes []WebNode, query NormalizedQuery) error {
 	for _, node := range nodes {
 		_, err := stmt.Exec(
 			node.URL,
-			node.context.Title,
-			node.context.Description,
+			"", // title - no longer available in CrawlNode
+			"", // description - no longer available in CrawlNode
 			query.CleanedQuery,
 			query.DataEntity,
 			query.OutputFormat,
@@ -201,4 +229,123 @@ func GetRecentDatasets(limit int) ([]Dataset, error) {
 	}
 
 	return datasets, nil
+}
+
+// flushDatasetBatch writes the current batch of DatasetMetadata records to the database.
+// This is called automatically when the batch buffer reaches 50 records.
+func (m *Manager) flushDatasetBatch() {
+	if m.dbBatchCount == 0 {
+		return // Nothing to flush
+	}
+
+	// Ensure database connection exists
+	if db == nil {
+		if err := InitDB(); err != nil {
+			fmt.Printf("[ERROR] Failed to initialize database for batch flush: %v\n", err)
+			m.dbBatchCount = 0 // Reset to prevent infinite retry
+			return
+		}
+	}
+
+	// Begin transaction
+	tx, err := db.Begin()
+	if err != nil {
+		fmt.Printf("[ERROR] Failed to begin transaction for batch flush: %v\n", err)
+		m.dbBatchCount = 0
+		return
+	}
+	defer tx.Rollback()
+
+	// Prepare INSERT statement with ON CONFLICT
+	stmt, err := tx.Prepare(`
+		INSERT INTO datasets (
+			title, source, description, keywords, url,
+			west_bc, east_bc, north_bc, south_bc,
+			lat_res, long_res, geo_unit, horizontal_crs,
+			vertical_crs, alt_res, alt_units,
+			start_date, end_date
+		) VALUES (
+			$1, $2, $3, $4, $5,
+			$6, $7, $8, $9,
+			$10, $11, $12, $13,
+			$14, $15, $16,
+			$17, $18
+		)
+		ON CONFLICT (url) DO UPDATE SET
+			title = EXCLUDED.title,
+			description = EXCLUDED.description,
+			keywords = EXCLUDED.keywords,
+			west_bc = EXCLUDED.west_bc,
+			east_bc = EXCLUDED.east_bc,
+			north_bc = EXCLUDED.north_bc,
+			south_bc = EXCLUDED.south_bc,
+			lat_res = EXCLUDED.lat_res,
+			long_res = EXCLUDED.long_res,
+			geo_unit = EXCLUDED.geo_unit,
+			horizontal_crs = EXCLUDED.horizontal_crs,
+			vertical_crs = EXCLUDED.vertical_crs,
+			alt_res = EXCLUDED.alt_res,
+			alt_units = EXCLUDED.alt_units,
+			start_date = EXCLUDED.start_date,
+			end_date = EXCLUDED.end_date
+	`)
+	if err != nil {
+		fmt.Printf("[ERROR] Failed to prepare batch insert statement: %v\n", err)
+		m.dbBatchCount = 0
+		return
+	}
+	defer stmt.Close()
+
+	// Insert each record in the batch
+	insertedCount := 0
+	for i := 0; i < m.dbBatchCount; i++ {
+		record := m.dbBatch[i]
+
+		// Convert keywords slice to PostgreSQL array format
+		var keywordsArray interface{}
+		if len(record.Keywords) > 0 {
+			keywordsArray = "{" + strings.Join(record.Keywords, ",") + "}"
+		} else {
+			keywordsArray = nil
+		}
+
+		_, err := stmt.Exec(
+			record.Title,
+			record.Source,
+			record.Description,
+			keywordsArray,
+			record.URL,
+			record.Bounds.WestBC,
+			record.Bounds.EastBC,
+			record.Bounds.NorthBC,
+			record.Bounds.SouthBC,
+			record.HorizontalMeta.LatRes,
+			record.HorizontalMeta.LongRes,
+			record.HorizontalMeta.GeoUnit,
+			record.HorizontalMeta.HorizontalCRS,
+			record.VerticalMeta.VerticalCRS,
+			record.VerticalMeta.AltRes,
+			record.VerticalMeta.AltUnits,
+			record.StartDate,
+			record.EndDate,
+		)
+		if err != nil {
+			fmt.Printf("[WARN] Failed to insert dataset %s: %v\n", record.URL, err)
+			continue
+		}
+		insertedCount++
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		fmt.Printf("[ERROR] Failed to commit batch transaction: %v\n", err)
+		m.dbBatchCount = 0
+		return
+	}
+
+	fmt.Printf("[BATCH FLUSH] Successfully inserted %d/%d DatasetMetadata records to database\n",
+		insertedCount, m.dbBatchCount)
+
+	// Reset batch counter
+	m.dbBatchCount = 0
 }

@@ -19,6 +19,11 @@ func Contains(value string, slice []string) int {
 	return -1
 }
 
+// NOTE: MergeSort and Merge functions commented out after removing CosineSimilarity field
+// from CrawlNode. These were only used in commented-out code in Retrieval.go.
+// Re-enable if cosine similarity ranking is needed in the future.
+
+/*
 // MergeSort sorts the slice of WebNodes in place by CosineSimilarity using a
 // classic recursive merge sort algorithm.
 func MergeSort(list *[]WebNode, start int, end int) []WebNode {
@@ -60,6 +65,7 @@ func Merge(a *[]WebNode, b *[]WebNode) []WebNode {
 
 	return result
 }
+*/
 
 // Cosine returns the cosine similarity of a and b.
 //

@@ -76,14 +76,12 @@ type GRPCNormalizedQuery = NormalizedQuery
 // Crawler Core Types
 // ============================================================================
 
-// CrawlNode represents a discovered URL in the crawl tree with its context
-// and relevance scoring.
+// CrawlNode represents a discovered URL in the crawl tree. Minimal structure
+// for efficient BFS traversal during crawling.
 type CrawlNode struct {
-	URL              string      // The discovered URL
-	Parent           *CrawlNode  // Parent node in the crawl tree (nil for root)
-	Depth            int         // Distance from seed URL (0 = seed)
-	context          DataContext // Extracted metadata
-	CosineSimilarity float64     // Relevance score (0.0 to 1.0)
+	URL    string     // The discovered URL
+	Parent *CrawlNode // Parent node in the crawl tree (nil for root)
+	Depth  int        // Distance from seed URL (0 = seed)
 }
 
 // WebNode is a deprecated alias for CrawlNode maintained for backwards compatibility.
@@ -97,10 +95,10 @@ type CrawlManager struct {
 	searchQuery NormalizedQuery // The structured query driving this crawl
 
 	// State
-	downloadURLs        []CrawlNode            // Accumulated dataset URLs
-	CachedURLEmbeddings map[string]DataContext // Embeddings cache (future use)
-	searchFrom          map[string]DataContext // Seed URLs with context
-	seen                map[string]bool        // Deduplication tracker
+	downloadURLs []CrawlNode         // Accumulated dataset URLs
+	dbBatch      [50]DatasetMetadata // Batch buffer for DatasetMetadata records
+	dbBatchCount int                 // Current count of items in dbBatch
+	seen         map[string]bool     // Deduplication tracker
 
 	// Concurrency control
 	linkChan chan struct{}    // Link discovery signaling
@@ -119,14 +117,6 @@ type Manager = CrawlManager
 // ============================================================================
 // Metadata Types
 // ============================================================================
-
-// DataContext holds metadata about a discovered data source including
-// optional embedding vectors for similarity search.
-type DataContext struct {
-	Title       string    // Human-readable title
-	Description string    // Detailed description of the dataset
-	Embedding   []float64 // Optional embedding vector for semantic search
-}
 
 // BoundingBox represents geographic bounds for a dataset using decimal degrees.
 type BoundingBox struct {
@@ -246,9 +236,9 @@ type GeoFile struct {
 // FTPDirectory represents a hierarchical FTP directory structure with
 // downloadable geospatial files and their extracted metadata.
 type FTPDirectory struct {
-	Parent         *FTPDirectory      // Parent directory (nil for root)
-	SubDirectories []*FTPDirectory    // Child directories
-	Datasets       []DatasetMetadata  // Geospatial datasets with extracted metadata
+	Parent         *FTPDirectory     // Parent directory (nil for root)
+	SubDirectories []*FTPDirectory   // Child directories
+	Datasets       []DatasetMetadata // Geospatial datasets with extracted metadata
 }
 
 // FTPDir is a deprecated alias for FTPDirectory.

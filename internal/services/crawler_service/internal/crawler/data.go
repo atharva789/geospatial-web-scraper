@@ -143,15 +143,18 @@ var UnwantedClassOrIDSubstrings = map[string]bool{
 //   - Thematic datasets (climate, hydrology, biodiversity, demographics)
 //
 // Total seeds: 150+ URLs across government, academic, and international portals.
-var PublicGeospatialDataSeeds = map[string]DataContext{
+// NOTE: This variable is currently unused after refactoring away from DataContext.
+// Commented out to avoid compilation errors. Re-enable if needed for seed URL functionality.
+/*
+var PublicGeospatialDataSeeds = map[string]string{
 	// ------------------------------------------------------------------
 	// NATIONAL DATA SOURCES (UNITED STATES)
 	// ------------------------------------------------------------------
 
 	// --- Newly added, highly structured endpoints ---
-	"https://prd-tnm.s3.amazonaws.com/index.html?prefix=StagedProducts/": {
-		Description: "USGS The National Map – browsable S3 bucket for staged elevation, hydrography, imagery, and land-cover files.",
-	},
+	"https://prd-tnm.s3.amazonaws.com/index.html?prefix=StagedProducts/": "USGS The National Map – browsable S3 bucket for staged elevation, hydrography, imagery, and land-cover files.",
+*/
+/*
 	"https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/": {
 		Description: "USGS Elevation delivery directory (1 m & 10 m DEM GeoTIFFs).",
 	},
@@ -508,3 +511,4 @@ var PublicGeospatialDataSeeds = map[string]DataContext{
 		Description: "Czech national mapping authority GeoPortal.",
 	},
 }
+*/

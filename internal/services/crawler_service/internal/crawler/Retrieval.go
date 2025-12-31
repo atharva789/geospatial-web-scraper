@@ -183,7 +183,7 @@ func GoogleSearch(q *GRPCNormalizedQuery) ([]WebNode, error) {
 
 		// iterate, parse searchResult into node
 		for _, item := range searchResult.Items {
-			nodes = append(nodes, WebNode{URL: item.Link, context: DataContext{Title: item.Title, Description: item.Snippet}, Depth: 0, Parent: nil})
+			nodes = append(nodes, WebNode{URL: item.Link, Depth: 0, Parent: nil})
 		}
 	}
 

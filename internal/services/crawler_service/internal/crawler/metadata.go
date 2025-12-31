@@ -414,10 +414,11 @@ func GetPageMetadata(doc *html.Node) (downloadMetadata, []string) {
 }
 
 // ExtractMetadata parses metadata from the provided HTML document
-// and returns a JSON string describing the download URL and page details.
-func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
+// and returns a DatasetMetadata object with all extracted information.
+func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) DatasetMetadata {
 
 	md, xmlLinks := GetPageMetadata(doc)
+	md.URL = downloadURL // Set the download URL
 
 	var titleBuf, descBuf, sourceBuf strings.Builder
 
@@ -493,9 +494,6 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 	md.Title += strings.TrimSpace(strings.Join(strings.Fields(titleBuf.String()), " "))
 	md.Description += strings.TrimSpace(strings.Join(strings.Fields(descBuf.String()), " "))
 	md.Source = sourceBuf.String()
-	out, err := json.Marshal(md)
-	if err != nil {
-		panic("ExtractMetadata error while coverting data to JSON")
-	}
-	return string(out)
+
+	return md
 }

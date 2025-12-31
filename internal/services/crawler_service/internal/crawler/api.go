@@ -43,7 +43,7 @@ func Run(query NormalizedQuery) error {
 	manager := CrawlManager{
 		searchQuery:  query,
 		downloadURLs: []CrawlNode{},
-		searchFrom:   PublicGeospatialDataSeeds, // Seed URLs from data.go
+		dbBatchCount: 0, // Initialize batch counter
 		linkChan:     make(chan struct{}, 1),
 		smTokens:     make(chan struct{}, 40), // Limit to 40 concurrent crawls
 		dlTokens:     make(chan struct{}, 40), // Limit to 40 concurrent downloads
