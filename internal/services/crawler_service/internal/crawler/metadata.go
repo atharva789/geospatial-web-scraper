@@ -138,6 +138,10 @@ func CheckAncestors(n *html.Node) *html.Node {
 	return nil
 }
 
+func ParseJSONLD(jsonString string) (string, error) {
+	return "", nil
+}
+
 func GetPageMetadata(doc *html.Node) (downloadMetadata, []string) {
 	unwanted := []string{}
 	md := downloadMetadata{}
@@ -333,9 +337,10 @@ func GetPageMetadata(doc *html.Node) (downloadMetadata, []string) {
 // ExtractMetadata parses metadata from the provided HTML document
 // and returns a JSON string describing the download URL and page details.
 func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
+
 	md, xmlLinks := GetPageMetadata(doc)
 
-	var titleBuf, descBuf strings.Builder
+	var titleBuf, descBuf, sourceBuf strings.Builder
 
 	// Secondary XML harvest (RSS/Atom) – single client with timeout.
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -358,30 +363,60 @@ func ExtractMetadata(doc *html.Node, pageURL, downloadURL string) string {
 			continue
 		}
 		var x struct {
-			Title       string `xml:"title"`
-			Description string `xml:"description"`
+			Title       string   `xml:"idinfo>citation>citeinfo>title"`
+			Description string   `xml:"idinfo>descript>abstract"`
+			Source      string   `xml:"idinfo>citation>citeinfo>origin"`
+			WestBC      float64  `xml:"idinfo>spdom>bounding>westbc"`
+			EastBC      float64  `xml:"idinfo>spdom>bounding>eastbc"`
+			NorthBC     float64  `xml:"idinfo>spdom>bounding>northbc"`
+			SouthBC     float64  `xml:"idinfo>spdom>bounding>southbc"`
+			StartDate   string   `xml:"idinfo>timeperd>timeinfo>rngdates>begdate"`
+			EndDate     string   `xml:"idinfo>timeperd>timeinfo>rngdates>enddate"`
+			LatRes      float64  `xml:"spref>horizsys>geograph>latres"`
+			LongRes     float64  `xml:"spref>horizsys>geograph>longres"`
+			GeoUnit     string   `xml:"spref>horizsys>geograph>geogunit"`
+			HorizCRS    string   `xml:"spref>horizsys>geodetic>horizdn"`
+			VertCRS     string   `xml:"spref>vertdef>altsys>altdatum"`
+			AltRes      float64  `xml:"spref>vertdef>altsys>altres"`
+			AltUnits    string   `xml:"spref>vertdef>altsys>altunits"`
+			Keywords    []string `xml:"idinfo>keywords>theme>themekey"`
 		}
 		if err := xml.Unmarshal(data, &x); err == nil {
-			if md.Title == "" {
-				AddToStringBuilder(&titleBuf, x.Title)
+			titleBuf.Reset()
+			descBuf.Reset()
+			AddToStringBuilder(&titleBuf, x.Title)
+			AddToStringBuilder(&descBuf, x.Description)
+			AddToStringBuilder(&sourceBuf, x.Source)
+			md.Bounds = BoundingBox{
+				WestBC:  x.WestBC,
+				EastBC:  x.EastBC,
+				NorthBC: x.NorthBC,
+				SouthBC: x.SouthBC,
 			}
-			if md.Description == "" {
-				AddToStringBuilder(&descBuf, x.Description)
+			md.StartDate = x.StartDate
+			md.EndDate = x.EndDate
+			md.HorizontalMeta = HorizontalMeta{
+				LatRes:        x.LatRes,
+				LongRes:       x.LongRes,
+				GeoUnit:       x.GeoUnit,
+				HorizontalCRS: x.HorizCRS,
 			}
+			md.VerticalMeta = VerticalMeta{
+				VerticalCRS: x.VertCRS,
+				AltRes:      x.AltRes,
+				AltUnits:    x.AltUnits,
+			}
+			md.Keywords = append(md.Keywords, x.Keywords...)
 		}
 	}
 
 	// Final clean-up & assign.
 	md.Title += strings.TrimSpace(strings.Join(strings.Fields(titleBuf.String()), " "))
 	md.Description += strings.TrimSpace(strings.Join(strings.Fields(descBuf.String()), " "))
-
+	md.Source = sourceBuf.String()
 	out, err := json.Marshal(md)
 	if err != nil {
 		panic("ExtractMetadata error while coverting data to JSON")
 	}
 	return string(out)
-}
-
-func CheckAncesstors(n *html.Node) {
-	// unimplemented
 }

@@ -128,28 +128,103 @@ type DataContext struct {
 	Embedding   []float64 // Optional embedding vector for semantic search
 }
 
+// BoundingBox represents geographic bounds for a dataset using decimal degrees.
+type BoundingBox struct {
+	EastBC  float64 `json:"eastbc,omitempty"`  // Eastern boundary (longitude)
+	WestBC  float64 `json:"westbc,omitempty"`  // Western boundary (longitude)
+	NorthBC float64 `json:"northbc,omitempty"` // Northern boundary (latitude)
+	SouthBC float64 `json:"southbc,omitempty"` // Southern boundary (latitude)
+}
+
+// VerticalMeta represents vertical/elevation metadata for a dataset.
+type VerticalMeta struct {
+	VerticalCRS string  `json:"verticalcrs,omitempty"` // Vertical coordinate reference system
+	AltRes      float64 `json:"altres,omitempty"`      // Altitude resolution
+	AltUnits    string  `json:"altunits,omitempty"`    // Altitude units (e.g., "meters", "feet")
+}
+
+// HorizontalMeta represents lat/long metadata
+// (CRS, resolution)
+type HorizontalMeta struct {
+	LatRes        float64 `json:"latres,omitempty"`        // Latitude resolution
+	LongRes       float64 `json:"longres,omitempty"`       // Longitude resolution
+	GeoUnit       string  `json:"geounit,omitempty"`       // Geographic unit (e.g., "degrees", "meters")
+	HorizontalCRS string  `json:"horizontalcrs,omitempty"` // Horizontal coordinate reference system
+}
+
 // DatasetMetadata represents comprehensive metadata extracted from HTML pages
 // about downloadable geospatial files.
 type DatasetMetadata struct {
-	Title       string           `json:"title,omitempty"`       // Dataset title
-	Source      *DatasetMetadata `json:"source,omitempty"`      // Parent/source metadata
-	Description string           `json:"description,omitempty"` // Long-form description
-	Keywords    []string         `json:"keywords,omitempty"`    // Searchable keywords
-	URL         string           `json:"url"`                   // Download URL
+	Title          string         `json:"title,omitempty"`          // Dataset title
+	Source         string         `json:"source,omitempty"`         // Source/provider name
+	Description    string         `json:"description,omitempty"`    // Long-form description
+	Keywords       []string       `json:"keywords,omitempty"`       // Searchable keywords
+	URL            string         `json:"url"`                      // Download URL
+	Bounds         BoundingBox    `json:"bounds,omitempty"`         // Geographic bounding box
+	HorizontalMeta HorizontalMeta `json:"horizontalmeta,omitempty"` //horizontal/lat-long metadata
+	VerticalMeta   VerticalMeta   `json:"verticalmeta,omitempty"`   // Vertical/elevation metadata
+	StartDate      string         `json:"start_date,omitempty"`     // Temporal coverage start (ISO 8601: YYYY-MM-DD)
+	EndDate        string         `json:"end_date,omitempty"`       // Temporal coverage end (ISO 8601: YYYY-MM-DD)
 }
 
 // ToString formats the metadata as a human-readable string with newline-separated fields.
 func (dm *DatasetMetadata) ToString() string {
 	var sb strings.Builder
 	sb.WriteString("TITLE: " + dm.Title + "\n")
-	if dm.Source != nil {
-		sb.WriteString("SOURCE: " + dm.Source.Title + "\n")
+	if dm.Source != "" {
+		sb.WriteString("SOURCE: " + dm.Source + "\n")
 	}
 	sb.WriteString("DESCRIPTION: " + dm.Description + "\n")
 	for _, word := range dm.Keywords {
 		sb.WriteString("  KEYWORD: " + word + "\n")
 	}
-	sb.WriteString("URL: " + dm.URL)
+	sb.WriteString("URL: " + dm.URL + "\n")
+	if dm.Bounds.EastBC != 0 || dm.Bounds.WestBC != 0 || dm.Bounds.NorthBC != 0 || dm.Bounds.SouthBC != 0 {
+		sb.WriteString("BOUNDS: ")
+		sb.WriteString(fmt.Sprintf("N:%.4f S:%.4f E:%.4f W:%.4f\n",
+			dm.Bounds.NorthBC, dm.Bounds.SouthBC, dm.Bounds.EastBC, dm.Bounds.WestBC))
+	}
+	if dm.HorizontalMeta.LatRes != 0 || dm.HorizontalMeta.LongRes != 0 || dm.HorizontalMeta.GeoUnit != "" || dm.HorizontalMeta.HorizontalCRS != "" {
+		sb.WriteString("HORIZONTAL METADATA:\n")
+		if dm.HorizontalMeta.LatRes != 0 || dm.HorizontalMeta.LongRes != 0 {
+			sb.WriteString("  RESOLUTION: ")
+			sb.WriteString(fmt.Sprintf("Lat:%.6f Long:%.6f", dm.HorizontalMeta.LatRes, dm.HorizontalMeta.LongRes))
+			if dm.HorizontalMeta.GeoUnit != "" {
+				sb.WriteString(" (" + dm.HorizontalMeta.GeoUnit + ")")
+			}
+			sb.WriteString("\n")
+		}
+		if dm.HorizontalMeta.HorizontalCRS != "" {
+			sb.WriteString("  CRS: " + dm.HorizontalMeta.HorizontalCRS + "\n")
+		}
+	}
+	if dm.VerticalMeta.VerticalCRS != "" || dm.VerticalMeta.AltRes != 0 || dm.VerticalMeta.AltUnits != "" {
+		sb.WriteString("VERTICAL METADATA:\n")
+		if dm.VerticalMeta.VerticalCRS != "" {
+			sb.WriteString("  CRS: " + dm.VerticalMeta.VerticalCRS + "\n")
+		}
+		if dm.VerticalMeta.AltRes != 0 {
+			sb.WriteString(fmt.Sprintf("  ALTITUDE RESOLUTION: %.6f", dm.VerticalMeta.AltRes))
+			if dm.VerticalMeta.AltUnits != "" {
+				sb.WriteString(" " + dm.VerticalMeta.AltUnits)
+			}
+			sb.WriteString("\n")
+		}
+	}
+	if dm.StartDate != "" || dm.EndDate != "" {
+		sb.WriteString("TEMPORAL: ")
+		if dm.StartDate != "" {
+			sb.WriteString(dm.StartDate)
+		} else {
+			sb.WriteString("N/A")
+		}
+		sb.WriteString(" to ")
+		if dm.EndDate != "" {
+			sb.WriteString(dm.EndDate)
+		} else {
+			sb.WriteString("N/A")
+		}
+	}
 	return sb.String()
 }
 

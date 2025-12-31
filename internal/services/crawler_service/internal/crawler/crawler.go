@@ -13,9 +13,9 @@ import (
 // for further crawling up to a maximum depth.
 func VisitNode(n *html.Node, links *[]WebNode, resp *http.Response, parent *WebNode, root *html.Node, searchQuery string) {
 	const maxDepth = 4
-
+	checkedPageType := false
 	if n.Type == html.ElementNode {
-		if DetectFTP(n, resp) {
+		if DetectFTP(n, resp) && !checkedPageType {
 			// launch an async job
 			IndexFTP(n, resp)
 			return
