@@ -183,16 +183,21 @@ func TestFTPDirectoryStructure(t *testing.T) {
 	root := &FTPDirectory{
 		Parent:         nil,
 		SubDirectories: nil,
-		DownloadFiles: []GeoFile{
-			{URL: "https://example.com/root/file1.tif", Metadata: "https://example.com/root/file1.xml"},
+		Datasets: []DatasetMetadata{
+			{
+				URL:   "https://example.com/root/file1.tif",
+				Title: "Test Dataset",
+			},
 		},
 	}
 
 	subdir := &FTPDirectory{
 		Parent:         root,
 		SubDirectories: nil,
-		DownloadFiles: []GeoFile{
-			{URL: "https://example.com/root/subdir/file2.nc", Metadata: ""},
+		Datasets: []DatasetMetadata{
+			{
+				URL: "https://example.com/root/subdir/file2.nc",
+			},
 		},
 	}
 
@@ -205,16 +210,16 @@ func TestFTPDirectoryStructure(t *testing.T) {
 	if len(root.SubDirectories) != 1 {
 		t.Errorf("Root should have 1 subdirectory, got %d", len(root.SubDirectories))
 	}
-	if len(root.DownloadFiles) != 1 {
-		t.Errorf("Root should have 1 file, got %d", len(root.DownloadFiles))
+	if len(root.Datasets) != 1 {
+		t.Errorf("Root should have 1 dataset, got %d", len(root.Datasets))
 	}
 
 	// Verify subdirectory
 	if subdir.Parent != root {
 		t.Error("Subdirectory parent should be root")
 	}
-	if len(subdir.DownloadFiles) != 1 {
-		t.Errorf("Subdirectory should have 1 file, got %d", len(subdir.DownloadFiles))
+	if len(subdir.Datasets) != 1 {
+		t.Errorf("Subdirectory should have 1 dataset, got %d", len(subdir.Datasets))
 	}
 }
 

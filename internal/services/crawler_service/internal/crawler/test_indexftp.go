@@ -54,13 +54,30 @@ func IsS3URL(urlStr string) bool {
 
 // PrintFTPDirectory is a helper function to pretty-print the FTPDirectory structure
 func PrintFTPDirectory(dir FTPDirectory, indent string) {
-	fmt.Printf("%sDownload Files (%d):\n", indent, len(dir.DownloadFiles))
-	for i, file := range dir.DownloadFiles {
-		fmt.Printf("%s  [%d] URL: %s\n", indent, i, file.URL)
-		if file.Metadata != "" {
-			fmt.Printf("%s      Metadata: %s\n", indent, file.Metadata)
-		} else {
-			fmt.Printf("%s      Metadata: (none)\n", indent)
+	fmt.Printf("%sDatasets (%d):\n", indent, len(dir.Datasets))
+	for i, dataset := range dir.Datasets {
+		fmt.Printf("%s  [%d] URL: %s\n", indent, i, dataset.URL)
+		if dataset.Title != "" {
+			fmt.Printf("%s      Title: %s\n", indent, dataset.Title)
+		}
+		if dataset.Description != "" {
+			descPreview := dataset.Description
+			if len(descPreview) > 100 {
+				descPreview = descPreview[:100] + "..."
+			}
+			fmt.Printf("%s      Description: %s\n", indent, descPreview)
+		}
+		if dataset.Source != "" {
+			fmt.Printf("%s      Source: %s\n", indent, dataset.Source)
+		}
+		if len(dataset.Keywords) > 0 {
+			fmt.Printf("%s      Keywords: %v\n", indent, dataset.Keywords)
+		}
+		if dataset.Bounds.EastBC != 0 || dataset.Bounds.WestBC != 0 ||
+		   dataset.Bounds.NorthBC != 0 || dataset.Bounds.SouthBC != 0 {
+			fmt.Printf("%s      Bounds: N:%.4f S:%.4f E:%.4f W:%.4f\n", indent,
+				dataset.Bounds.NorthBC, dataset.Bounds.SouthBC,
+				dataset.Bounds.EastBC, dataset.Bounds.WestBC)
 		}
 	}
 

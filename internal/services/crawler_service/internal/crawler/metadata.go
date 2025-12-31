@@ -142,6 +142,85 @@ func ParseJSONLD(jsonString string) (string, error) {
 	return "", nil
 }
 
+// ParseMetadataFile fetches a metadata file (XML) from the given URL and parses it
+// into a DatasetMetadata object. Returns an empty DatasetMetadata if fetch or parse fails.
+func ParseMetadataFile(metadataURL string) DatasetMetadata {
+	dm := DatasetMetadata{}
+
+	if metadataURL == "" {
+		return dm
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(metadataURL)
+	if err != nil {
+		return dm
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return dm
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return dm
+	}
+
+	// Parse the XML metadata
+	var x struct {
+		Title       string   `xml:"idinfo>citation>citeinfo>title"`
+		Description string   `xml:"idinfo>descript>abstract"`
+		Source      string   `xml:"idinfo>citation>citeinfo>origin"`
+		WestBC      float64  `xml:"idinfo>spdom>bounding>westbc"`
+		EastBC      float64  `xml:"idinfo>spdom>bounding>eastbc"`
+		NorthBC     float64  `xml:"idinfo>spdom>bounding>northbc"`
+		SouthBC     float64  `xml:"idinfo>spdom>bounding>southbc"`
+		StartDate   string   `xml:"idinfo>timeperd>timeinfo>rngdates>begdate"`
+		EndDate     string   `xml:"idinfo>timeperd>timeinfo>rngdates>enddate"`
+		LatRes      float64  `xml:"spref>horizsys>geograph>latres"`
+		LongRes     float64  `xml:"spref>horizsys>geograph>longres"`
+		GeoUnit     string   `xml:"spref>horizsys>geograph>geogunit"`
+		HorizCRS    string   `xml:"spref>horizsys>geodetic>horizdn"`
+		VertCRS     string   `xml:"spref>vertdef>altsys>altdatum"`
+		AltRes      float64  `xml:"spref>vertdef>altsys>altres"`
+		AltUnits    string   `xml:"spref>vertdef>altsys>altunits"`
+		Keywords    []string `xml:"idinfo>keywords>theme>themekey"`
+	}
+
+	if err := xml.Unmarshal(data, &x); err != nil {
+		// If XML parsing fails, return empty metadata
+		return dm
+	}
+
+	// Populate the DatasetMetadata from parsed XML
+	dm.Title = strings.TrimSpace(x.Title)
+	dm.Description = strings.TrimSpace(x.Description)
+	dm.Source = strings.TrimSpace(x.Source)
+	dm.Keywords = x.Keywords
+	dm.Bounds = BoundingBox{
+		WestBC:  x.WestBC,
+		EastBC:  x.EastBC,
+		NorthBC: x.NorthBC,
+		SouthBC: x.SouthBC,
+	}
+	dm.StartDate = x.StartDate
+	dm.EndDate = x.EndDate
+	dm.HorizontalMeta = HorizontalMeta{
+		LatRes:        x.LatRes,
+		LongRes:       x.LongRes,
+		GeoUnit:       x.GeoUnit,
+		HorizontalCRS: x.HorizCRS,
+	}
+	dm.VerticalMeta = VerticalMeta{
+		VerticalCRS: x.VertCRS,
+		AltRes:      x.AltRes,
+		AltUnits:    x.AltUnits,
+	}
+
+	return dm
+}
+
 func GetPageMetadata(doc *html.Node) (downloadMetadata, []string) {
 	unwanted := []string{}
 	md := downloadMetadata{}
