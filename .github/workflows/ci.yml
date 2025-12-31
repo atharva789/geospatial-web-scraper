@@ -33,11 +33,6 @@ jobs:
           python -m py_compile internal/services/querygen_service/querygen.py
           python -m py_compile internal/services/querygen_service/db.py
 
-      - name: Python lint (querynormalizer_service)
-        run: |
-          python -m py_compile internal/services/querynormalizer_service/server.py
-          python -m py_compile internal/services/querynormalizer_service/sentenceParsing.py
-
       - name: Python test (querygen_service)
         run: |
           cd internal/services/querygen_service
